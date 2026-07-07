@@ -1,0 +1,1489 @@
+/* ==============================================
+   cfp-theme.css — Wave Mint-Blue / Style B Blob
+   ระบบบริหารจัดการคาร์บอนองค์กร
+   อัพเดต: Pastel Soft Colors (ปรับสี entry และ report)
+   ============================================== */
+
+/* ===== CSS VARIABLES ===== */
+:root {
+  --cfp-primary:        #2AABB8;
+  --cfp-primary-dark:   #1A8898;
+  --cfp-primary-light:  #5CC8D8;
+  --cfp-mint:           #A8D8C0;
+  --cfp-powder:         #A8D4E8;
+  --cfp-lavender:       #C8D8EC;
+  --cfp-white:          #FFFFFF;
+  --cfp-bg:             #EEF6F8;
+  --cfp-card:           #FFFFFF;
+  --cfp-border:         #D0E8EE;
+  --cfp-border-strong:  #B8D8E4;
+  --cfp-hover:          #E4F6F8;
+  --cfp-text:           #1A3A44;
+  --cfp-text-mid:       #4A7A88;
+  --cfp-text-muted:     #7AAAB8;
+  --cfp-text-light:     #B0CED8;
+  --cfp-warning:        #F2A541;
+  --cfp-danger:         #E05050;
+  --cfp-success:        #43A047;
+  --cfp-sidebar-w:      280px;
+}
+
+/* ===== BASE ===== */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: 'Prompt', sans-serif;
+  background: var(--cfp-bg);
+  color: var(--cfp-text);
+  font-size: 0.9rem;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--cfp-primary); }
+a:hover { color: var(--cfp-primary-dark); }
+
+/* ============================================================
+   SIDEBAR — Pastel Soft Colors (ปรับ entry = review, report = entry เดิม)
+   ใช้ลำดับ: review → scope1 → scope2 → scope3 → settings → admin → reference → entry → report
+   ============================================================ */
+
+/* ----- Sidebar Base (พื้นหลังสีขาว) ----- */
+.cfp-sidebar {
+    background: #FFFFFF !important;
+    border-right: 1px solid var(--cfp-border, #D0E8EE);
+    width: 280px;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: width 0.3s ease, transform 0.28s ease;
+    box-shadow: 2px 0 16px rgba(0,0,0,0.04);
+}
+
+/* ----- Brand ----- */
+.cfp-sidebar .brand {
+    padding: 1rem 1.2rem 0.8rem;
+    border-bottom: 1px solid var(--cfp-border, #D0E8EE);
+    color: var(--cfp-text, #1A3A44);
+    font-size: 1rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+.cfp-sidebar .brand .brand-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #2AABB8, #5CC8D8);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    box-shadow: 0 3px 10px rgba(42,171,184,0.3);
+}
+.cfp-sidebar .brand .brand-sub {
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: var(--cfp-text-muted, #7AAAB8);
+    display: block;
+    line-height: 1.2;
+    margin-top: 2px;
+}
+
+/* ----- User Info ----- */
+.cfp-sidebar .sidebar-user {
+    margin: 10px 16px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #EEF8FA, #E0F0F4);
+    border: 1px solid #C8E0E8;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+.cfp-sidebar .sidebar-user .user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2AABB8, #5CC8D8);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.cfp-sidebar .sidebar-user .user-role {
+    font-size: 0.6rem;
+    color: var(--cfp-text-muted, #7AAAB8);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-weight: 500;
+}
+.cfp-sidebar .sidebar-user .user-name {
+    font-size: 0.9rem;
+    color: var(--cfp-text, #1A3A44);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ----- Scroll Area (ซ่อนด้วย visibility + opacity เพื่อให้ scrollTop ตั้งค่าได้) ----- */
+.cfp-sidebar .nav-scroll {
+    flex: 1;
+    overflow-y: scroll;
+    padding: 0.2rem 0.8rem 0.6rem;
+    scrollbar-width: thin;
+    scrollbar-color: var(--cfp-border, #D0E8EE) transparent;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+}
+
+.cfp-sidebar .nav-scroll.ready {
+    visibility: visible;
+    opacity: 1;
+}
+
+.cfp-sidebar .nav-scroll::-webkit-scrollbar {
+    width: 4px;
+}
+.cfp-sidebar .nav-scroll::-webkit-scrollbar-thumb {
+    background: var(--cfp-border, #D0E8EE);
+    border-radius: 4px;
+}
+
+
+/* ----- ซ่อน Badge ทั้งหมด ----- */
+.cfp-sidebar .badge-scope {
+    display: none !important;
+}
+
+/* ============================================================
+   SIDEBAR — SHIMMER EFFECT (ใช้วิธีเดียวกับ btn-cfp-add)
+   ============================================================ */
+
+/* Shimmer animation */
+@keyframes cfp-shimmer {
+    0%   { left: -120%; }
+    100% { left: 150%; }
+}
+
+/* ----- Nav Section Header Base ----- */
+.cfp-sidebar .nav-section-header {
+    border-radius: 11px !important;
+    margin: 2px 6px !important;
+    padding: 10px 13px !important;
+    display: flex !important;
+    align-items: center !important;
+    position: relative !important;
+    overflow: hidden !important;
+    cursor: pointer !important;
+    border: none !important;
+    transition: box-shadow .15s !important;
+    gap:14px;
+}
+.cfp-sidebar .nav-section-header:hover {
+    transform: none !important;
+}
+
+/* SHIMMER — ใช้วิธีเดียวกับ btn-cfp-add (transition + left) */
+.cfp-sidebar .nav-section-header::before {
+    content: '' !important;
+    position: absolute !important;
+    top: -50% !important;
+    left: -120% !important;
+    width: 40% !important;
+    height: 200% !important;
+    background: linear-gradient(
+        120deg,
+        transparent,
+        rgba(255, 255, 255, 0.05),
+        rgba(255, 255, 255, 0.25),
+        rgba(255, 255, 255, 0.05),
+        transparent
+    ) !important;
+    transform: rotate(25deg) !important;
+    transition: left 0.9s ease !important;
+    pointer-events: none !important;
+    z-index: 2 !important;
+    opacity: 1 !important;
+}
+
+/* Hover — วิ่งจากซ้ายไปขวา */
+.cfp-sidebar .nav-section-header:hover::before {
+    left: 150% !important;
+}
+
+/* text z-index — ให้สูงกว่า ::before */
+.cfp-sidebar .nav-section-header > i,
+.cfp-sidebar .nav-section-title,
+.cfp-sidebar .collapse-icon {
+    position: relative !important;
+    z-index: 3 !important;
+}
+.cfp-sidebar .nav-section-title {
+    flex: 1 !important;
+    font-weight: 600 !important;
+    font-size: .82rem !important;
+}
+.cfp-sidebar .collapse-icon {
+    font-size: .7rem !important;
+    opacity: .5 !important;
+    transition: transform .2s !important;
+}
+.cfp-sidebar .nav-section-collapsible.open .collapse-icon {
+    transform: rotate(180deg) !important;
+}
+
+/* ----- Timeline Sub Menu (เส้นแนวตั้ง) ----- */
+.nav-section-body {
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.32s ease, opacity 0.25s ease;
+}
+.nav-section-body.show {
+    max-height: 600px;
+    opacity: 1;
+}
+
+.nav-section-body .nav-section-inner {
+    padding: 4px 0 6px 16px !important;
+    border-left: 2px solid var(--cfp-border, #D0E8EE) !important;
+    margin-left: 20px !important;
+}
+
+.cfp-sidebar .nav-section-inner .nav-link {
+    border-radius: 7px !important;
+    padding: 6px 10px !important;
+    font-size: .75rem !important;
+    border-left: 2px solid transparent !important;
+    border-right: none !important;
+    transition: background .14s, color .14s, border-color .14s !important;
+}
+
+/* ================================================================
+   PASTEL SOFT COLORS — 9 สี (ปรับ entry และ report)
+   ================================================================ */
+
+/* ----- 1. ตรวจสอบ/อนุมัติ (review) — Pastel Teal ----- */
+.cfp-sidebar .nav-section-collapsible.review .nav-section-header {
+    background: linear-gradient(135deg, #d0eaf3, #add5e0) !important;
+    box-shadow: 0 2px 6px rgba(0, 130, 180, .12) !important;
+}
+.cfp-sidebar .nav-section-collapsible.review .nav-section-title,
+.cfp-sidebar .nav-section-collapsible.review .nav-section-header > i,
+.cfp-sidebar .nav-section-collapsible.review .collapse-icon {
+    color: #1A4A5A !important;
+}
+.cfp-sidebar .nav-section-collapsible.review .nav-section-inner .nav-link {
+    color: #2A5A6A !important;
+}
+.cfp-sidebar .nav-section-collapsible.review .nav-section-inner .nav-link i {
+    color: #3A8A9A !important;
+}
+.cfp-sidebar .nav-section-collapsible.review .nav-section-inner .nav-link:hover {
+    background: rgba(180, 220, 235, .35) !important;
+    color: #0A3848 !important;
+    border-left-color: #3A8A9A !important;
+}
+.cfp-sidebar .nav-section-collapsible.review .nav-section-inner .nav-link.active {
+    background: rgba(180, 220, 235, .50) !important;
+    color: #0A3848 !important;
+    border-left-color: #3A8A9A !important;
+    font-weight: 600 !important;
+}
+
+/* ----- 2. ทะเบียน S1 (scope1) — Pastel Mint ----- */
+.cfp-sidebar .nav-section-collapsible.scope1 .nav-section-header {
+    background: linear-gradient(135deg, #def5eb, #AADCC8) !important;
+    box-shadow: 0 2px 6px rgba(0, 150, 110, .12) !important;
+}
+.cfp-sidebar .nav-section-collapsible.scope1 .nav-section-title,
+.cfp-sidebar .nav-section-collapsible.scope1 .nav-section-header > i,
+.cfp-sidebar .nav-section-collapsible.scope1 .collapse-icon {
+    color: #1A4A38 !important;
+}
+.cfp-sidebar .nav-section-collapsible.scope1 .nav-section-inner .nav-link {
+    color: #2A5A48 !important;
+}
+.cfp-sidebar .nav-section-collapsible.scope1 .nav-section-inner .nav-link i {
+    color: #3A9A78 !important;
+}
+.cfp-sidebar .nav-section-collapsible.scope1 .nav-section-inner .nav-link:hover {
+    background: rgba(170, 220, 200, .35) !important;
+    color: #0A3828 !important;
+    border-left-color: #3A9A78 !important;
+}
+.cfp-sidebar .nav-section-collapsible.scope1 .nav-section-inner .nav-link.active {
+    background: rgba(170, 220, 200, .50) !important;
+    color: #0A3828 !important;
+    border-left-color: #3A9A78 !important;
+    font-weight: 600 !important;
+}
+
+/* ----- 3. ทะเบียน S2 (scope2) — Pastel Sage ----- */
+.cfp-sidebar .nav-section-collapsible.scope2 .nav-section-header {
+    background: linear-gradient(135deg, #ddf3dd, #AAD8AA) !important;
+    box-shadow: 0 2px 6px rgba(40, 140, 40, .12) !important;
+}
+.cfp-sidebar .nav-section-collapsible.scope2 .nav-section-title,
+.cfp-sidebar .nav-section-collapsible.scope2 .nav-section-header > i,
+.cfp-sidebar .nav-section-collapsible.scope2 .collapse-icon {
+    color: #1A4A1A !important;
+}
+.cfp-sidebar .nav-section-collapsible.scope2 .nav-section-inner .nav-link {
+    color: #2A5A2A !important;
+}
+.cfp-sidebar .nav-section-collapsible.scope2 .nav-section-inner .nav-link i {
+    color: #4A9A4A !important;
+}
+.cfp-sidebar .nav-section-collapsible.scope2 .nav-section-inner .nav-link:hover {
+    background: rgba(170, 216, 170, .35) !important;
+    color: #1A3A1A !important;
+    border-left-color: #4A9A4A !important;
+}
+.cfp-sidebar .nav-section-collapsible.scope2 .nav-section-inner .nav-link.active {
+    background: rgba(170, 216, 170, .50) !important;
+    color: #1A3A1A !important;
+    border-left-color: #4A9A4A !important;
+    font-weight: 600 !important;
+}
+
+/* ----- 4. ทะเบียน S3 (scope3) — Pastel Lime ----- */
+.cfp-sidebar .nav-section-collapsible.scope3 .nav-section-header {
+    background: linear-gradient(135deg, #dbebc2b5, #C0E09A) !important;
+    box-shadow: 0 2px 6px rgba(60, 160, 30, .12) !important;
+}
+.cfp-sidebar .nav-section-collapsible.scope3 .nav-section-title,
+.cfp-sidebar .nav-section-collapsible.scope3 .nav-section-header > i,
+.cfp-sidebar .nav-section-collapsible.scope3 .collapse-icon {
+    color: #2A4A10 !important;
+}
+.cfp-sidebar .nav-section-collapsible.scope3 .nav-section-inner .nav-link {
+    color: #3A5A20 !important;
+}
+.cfp-sidebar .nav-section-collapsible.scope3 .nav-section-inner .nav-link i {
+    color: #5A9828 !important;
+}
+.cfp-sidebar .nav-section-collapsible.scope3 .nav-section-inner .nav-link:hover {
+    background: rgba(192, 224, 154, .35) !important;
+    color: #1A3A08 !important;
+    border-left-color: #5A9828 !important;
+}
+.cfp-sidebar .nav-section-collapsible.scope3 .nav-section-inner .nav-link.active {
+    background: rgba(192, 224, 154, .50) !important;
+    color: #1A3A08 !important;
+    border-left-color: #5A9828 !important;
+    font-weight: 600 !important;
+}
+
+/* ----- 5. การตั้งค่า (settings) — Pastel Periwinkle ----- */
+.cfp-sidebar .nav-section-collapsible.settings .nav-section-header {
+    background: linear-gradient(135deg, #d5e6fa, #AAC4E8) !important;
+    box-shadow: 0 2px 6px rgba(40, 90, 200, .12) !important;
+}
+.cfp-sidebar .nav-section-collapsible.settings .nav-section-title,
+.cfp-sidebar .nav-section-collapsible.settings .nav-section-header > i,
+.cfp-sidebar .nav-section-collapsible.settings .collapse-icon {
+    color: #1A3870 !important;
+}
+.cfp-sidebar .nav-section-collapsible.settings .nav-section-inner .nav-link {
+    color: #2A4880 !important;
+}
+.cfp-sidebar .nav-section-collapsible.settings .nav-section-inner .nav-link i {
+    color: #5A80C8 !important;
+}
+.cfp-sidebar .nav-section-collapsible.settings .nav-section-inner .nav-link:hover {
+    background: rgba(170, 196, 232, .35) !important;
+    color: #0A2858 !important;
+    border-left-color: #5A80C8 !important;
+}
+.cfp-sidebar .nav-section-collapsible.settings .nav-section-inner .nav-link.active {
+    background: rgba(170, 196, 232, .50) !important;
+    color: #0A2858 !important;
+    border-left-color: #5A80C8 !important;
+    font-weight: 600 !important;
+}
+
+/* ----- 6. จัดการ (admin) — Pastel Lavender ----- */
+.cfp-sidebar .nav-section-collapsible.admin .nav-section-header {
+    background: linear-gradient(135deg, #e6dbf8, #C8B8E4) !important;
+    box-shadow: 0 2px 6px rgba(80, 50, 180, .12) !important;
+}
+.cfp-sidebar .nav-section-collapsible.admin .nav-section-title,
+.cfp-sidebar .nav-section-collapsible.admin .nav-section-header > i,
+.cfp-sidebar .nav-section-collapsible.admin .collapse-icon {
+    color: #2A1860 !important;
+}
+.cfp-sidebar .nav-section-collapsible.admin .nav-section-inner .nav-link {
+    color: #3A2870 !important;
+}
+.cfp-sidebar .nav-section-collapsible.admin .nav-section-inner .nav-link i {
+    color: #7868C8 !important;
+}
+.cfp-sidebar .nav-section-collapsible.admin .nav-section-inner .nav-link:hover {
+    background: rgba(200, 184, 228, .35) !important;
+    color: #1A0848 !important;
+    border-left-color: #7868C8 !important;
+}
+.cfp-sidebar .nav-section-collapsible.admin .nav-section-inner .nav-link.active {
+    background: rgba(200, 184, 228, .50) !important;
+    color: #1A0848 !important;
+    border-left-color: #7868C8 !important;
+    font-weight: 600 !important;
+}
+
+/* ----- 7. ข้อมูลอ้างอิง (reference) — Pastel Pink ----- */
+.cfp-sidebar .nav-section-collapsible.reference .nav-section-header {
+    background: linear-gradient(135deg, #edd4e2, #e7c2ce) !important;
+    box-shadow: 0 2px 6px rgba(180, 40, 90, .12) !important;
+}
+.cfp-sidebar .nav-section-collapsible.reference .nav-section-title,
+.cfp-sidebar .nav-section-collapsible.reference .nav-section-header > i,
+.cfp-sidebar .nav-section-collapsible.reference .collapse-icon {
+    color: #681838 !important;
+}
+.cfp-sidebar .nav-section-collapsible.reference .nav-section-inner .nav-link {
+    color: #782848 !important;
+}
+.cfp-sidebar .nav-section-collapsible.reference .nav-section-inner .nav-link i {
+    color: #C86888 !important;
+}
+.cfp-sidebar .nav-section-collapsible.reference .nav-section-inner .nav-link:hover {
+    background: rgba(228, 192, 204, .35) !important;
+    color: #480818 !important;
+    border-left-color: #C86888 !important;
+}
+.cfp-sidebar .nav-section-collapsible.reference .nav-section-inner .nav-link.active {
+    background: rgba(228, 192, 204, .50) !important;
+    color: #480818 !important;
+    border-left-color: #C86888 !important;
+    font-weight: 600 !important;
+}
+
+/* ----- 8. บันทึกข้อมูล (entry) — Pastel Teal (เหมือน review) ----- */
+.cfp-sidebar .nav-section-collapsible.entry .nav-section-header {
+    background: linear-gradient(135deg, #e1f4fa, #bbdfe9) !important;
+    box-shadow: 0 2px 6px rgba(0, 130, 180, .12) !important;
+}
+.cfp-sidebar .nav-section-collapsible.entry .nav-section-title,
+.cfp-sidebar .nav-section-collapsible.entry .nav-section-header > i,
+.cfp-sidebar .nav-section-collapsible.entry .collapse-icon {
+    color: #1A4A5A !important;
+}
+.cfp-sidebar .nav-section-collapsible.entry .nav-section-inner .nav-link {
+    color: #2A5A6A !important;
+}
+.cfp-sidebar .nav-section-collapsible.entry .nav-section-inner .nav-link i {
+    color: #3A8A9A !important;
+}
+.cfp-sidebar .nav-section-collapsible.entry .nav-section-inner .nav-link:hover {
+    background: rgba(180, 220, 235, .35) !important;
+    color: #0A3848 !important;
+    border-left-color: #3A8A9A !important;
+}
+.cfp-sidebar .nav-section-collapsible.entry .nav-section-inner .nav-link.active {
+    background: rgba(180, 220, 235, .50) !important;
+    color: #0A3848 !important;
+    border-left-color: #3A8A9A !important;
+    font-weight: 600 !important;
+}
+
+/* ----- 9. ข้อมูลรายงาน (report) — Pastel Peach (สีส้มแบบ entry เดิม) ----- */
+.cfp-sidebar .nav-section-collapsible.report .nav-section-header {
+    background: linear-gradient(135deg, #f8e5da, #ECD0C0) !important;
+    box-shadow: 0 2px 6px rgba(180, 90, 30, .12) !important;
+}
+.cfp-sidebar .nav-section-collapsible.report .nav-section-title,
+.cfp-sidebar .nav-section-collapsible.report .nav-section-header > i,
+.cfp-sidebar .nav-section-collapsible.report .collapse-icon {
+    color: #683018 !important;
+}
+.cfp-sidebar .nav-section-collapsible.report .nav-section-inner .nav-link {
+    color: #784028 !important;
+}
+.cfp-sidebar .nav-section-collapsible.report .nav-section-inner .nav-link i {
+    color: #C87858 !important;
+}
+.cfp-sidebar .nav-section-collapsible.report .nav-section-inner .nav-link:hover {
+    background: rgba(236, 208, 192, .35) !important;
+    color: #481810 !important;
+    border-left-color: #C87858 !important;
+}
+.cfp-sidebar .nav-section-collapsible.report .nav-section-inner .nav-link.active {
+    background: rgba(236, 208, 192, .50) !important;
+    color: #481810 !important;
+    border-left-color: #C87858 !important;
+    font-weight: 600 !important;
+}
+
+/* ----- Dashboard Pill (พร้อม Shimmer) ----- */
+.cfp-sidebar .nav-dashboard-pill {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    margin: 2px 6px 6px !important;
+    padding: 18px 16px !important;
+    border-radius: 8px !important;
+    background: linear-gradient(135deg, #abe5eb, #39bdcb) !important;
+    color: #fff !important;
+    font-size: .8rem !important;
+    font-weight: 500 !important;
+    text-decoration: none !important;
+    box-shadow: 0 3px 10px rgba(26, 138, 150, .28) !important;
+    position: relative !important;
+    overflow: hidden !important;
+    transition: box-shadow .15s !important;
+}
+
+/* SHIMMER — ใช้วิธีเดียวกับ nav-section-header (transition + left) */
+.cfp-sidebar .nav-dashboard-pill::before {
+    content: '' !important;
+    position: absolute !important;
+    top: -50% !important;
+    left: -120% !important;
+    width: 40% !important;
+    height: 200% !important;
+    background: linear-gradient(
+        120deg,
+        transparent,
+        rgba(255, 255, 255, 0.08),
+        rgba(255, 255, 255, 0.30),
+        rgba(255, 255, 255, 0.08),
+        transparent
+    ) !important;
+    transform: rotate(25deg) !important;
+    transition: left 0.9s ease !important;
+    pointer-events: none !important;
+    z-index: 2 !important;
+    opacity: 1 !important;
+}
+
+/* Hover — วิ่งจากซ้ายไปขวา */
+.cfp-sidebar .nav-dashboard-pill:hover::before {
+    left: 150% !important;
+}
+
+.cfp-sidebar .nav-dashboard-pill:hover {
+    box-shadow: 0 5px 16px rgba(26, 138, 150, .4) !important;
+    color: #fff !important;
+}
+
+.cfp-sidebar .nav-dashboard-pill .bi {
+    font-size: .9rem !important;
+    color: #fff !important;
+    position: relative !important;
+    z-index: 3 !important;
+}
+
+.cfp-sidebar .nav-dashboard-pill span {
+    position: relative !important;
+    z-index: 3 !important;
+}
+/* ----- Main Menu (ไม่มีขอบซ้าย) ----- */
+.cfp-sidebar .nav-link {
+    color: var(--cfp-text-mid, #4A7A88);
+    padding: 0.6rem 1rem;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: all 0.15s ease;
+    text-decoration: none;
+    margin: 0;
+    border-left: none !important;
+    border-radius: 0 !important;
+    font-weight: 500;
+}
+.cfp-sidebar .nav-link:hover {
+    background: var(--cfp-hover, #E4F6F8);
+    color: var(--cfp-text, #1A3A44);
+}
+.cfp-sidebar .nav-link.active {
+    background: #E4F6F8;
+    color: var(--cfp-text, #1A3A44);
+    font-weight: 700;
+}
+.cfp-sidebar .nav-link i {
+    font-size: 1.1rem;
+    width: 24px;
+    flex-shrink: 0;
+    color: var(--cfp-text-light, #B0CED8);
+}
+.cfp-sidebar .nav-link:hover i {
+    color: var(--cfp-primary, #2AABB8);
+    transform: translateX(3px) scale(1.05);
+}
+.cfp-sidebar .nav-link.active i {
+    color: var(--cfp-primary, #2AABB8);
+}
+.cfp-sidebar .nav-link .nav-label {
+    flex: 1;
+}
+
+/* ----- Footer ----- */
+.cfp-sidebar .sidebar-footer {
+    padding: 0.6rem 0.8rem 0.8rem;
+    border-top: 1px solid var(--cfp-border, #D0E8EE);
+    flex-shrink: 0;
+}
+.cfp-sidebar .sidebar-footer .nav-link {
+    color: var(--cfp-danger, #E05050) !important;
+    font-size: 0.9rem;
+    border-left: none !important;
+    border-radius: 0 !important;
+}
+.cfp-sidebar .sidebar-footer .nav-link:hover {
+    background: #FEF0F0 !important;
+    color: #C0392B !important;
+}
+.cfp-sidebar .sidebar-footer .nav-link i {
+    color: var(--cfp-danger, #E05050) !important;
+}
+
+/* ----- Sidebar Overlay ----- */
+.cfp-sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 1040;
+}
+
+/* ===== ปุ่มย่อ/ขยายทั้งหมด ===== */
+.sidebar-toggle-all {
+    padding: 6px 12px 8px 12px;
+    border-top: 1px solid var(--cfp-border, #D0E8EE);
+    flex-shrink: 0;
+    background: #FFFFFF;
+}
+.btn-toggle-all {
+    background: transparent;
+    border: 1px solid var(--cfp-border, #D0E8EE);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 0.75rem;
+    color: var(--cfp-text-mid, #4A7A88);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+}
+.btn-toggle-all:hover {
+    background: var(--cfp-hover, #E4F6F8);
+    color: var(--cfp-primary, #2AABB8);
+    border-color: var(--cfp-primary, #2AABB8);
+}
+.btn-toggle-all i {
+    font-size: 0.9rem;
+}
+
+
+/* ==============================================
+   SIDEBAR — RESPONSIVE
+   ============================================== */
+
+/* Mobile */
+@media (max-width: 767px) {
+    .cfp-sidebar {
+        transform: translateX(-100%) !important;
+        transition: transform 0.28s ease !important;
+        z-index: 1050 !important;
+        width: 280px !important;
+    }
+    .cfp-sidebar.show {
+        transform: translateX(0) !important;
+        box-shadow: 4px 0 32px rgba(0,0,0,0.15) !important;
+    }
+    .cfp-sidebar-overlay.show {
+        display: block;
+    }
+    .cfp-main {
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
+}
+
+/* Tablet — collapsed sidebar */
+@media (min-width: 768px) and (max-width: 991px) {
+    .cfp-sidebar {
+        width: 72px !important;
+        transition: width 0.3s ease;
+    }
+    .cfp-sidebar .brand > div,
+    .cfp-sidebar .brand-sub,
+    .cfp-sidebar .sidebar-user .user-name,
+    .cfp-sidebar .sidebar-user .user-role,
+    .cfp-sidebar .nav-label,
+    .cfp-sidebar .nav-section-title,
+    .cfp-sidebar .badge-scope,
+    .cfp-sidebar .collapse-icon,
+    .cfp-sidebar .nav-section-header i:first-child {
+        display: none !important;
+    }
+    .cfp-sidebar .brand {
+        justify-content: center;
+        padding: 0.8rem;
+    }
+    .cfp-sidebar .sidebar-user {
+        justify-content: center;
+        padding: 8px;
+        margin: 6px;
+    }
+    .cfp-sidebar .nav-link {
+        justify-content: center;
+        padding: 0.6rem;
+        border-left: none !important;
+        border-radius: 0 !important;
+    }
+    .cfp-sidebar .nav-link i {
+        font-size: 1.2rem;
+        width: auto;
+    }
+    .cfp-sidebar .nav-section-inner {
+        border-left: none !important;
+        margin-left: 0;
+        padding-left: 0;
+    }
+    .cfp-sidebar .nav-section-body {
+        max-height: none !important;
+        opacity: 1 !important;
+    }
+    .nav-section-collapsible .collapse {
+        max-height: none !important;
+    }
+    .cfp-main {
+        margin-left: 72px;
+        width: calc(100% - 72px);
+    }
+}
+
+/* ==============================================
+   TOPBAR — Ice Teal Gradient + Wave V2
+   ============================================== */
+.cfp-topbar {
+  background: linear-gradient(110deg, #6ECDD8 0%, #85D8E2 30%, #9DE5DC 60%, #B8EDE0 100%);
+  border-bottom: none;
+  padding: 0 1.5rem;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 900; height: 58px;
+  /* overflow: hidden; */
+}
+
+/* Wave SVG overlay — inject ผ่าน ::before / ::after ไม่ได้ (ต้องใช้ SVG inline ใน PHP) */
+.cfp-topbar::before,
+.cfp-topbar::after { display: none; }
+
+
+/* Page icon box — teal เข้ม ตามรูป */
+.topbar-page-icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: var(--cfp-primary);
+  color: #fff; font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 3px 8px rgba(42,171,184,0.3);
+}
+
+/* Title ขนาดใหญ่ ตามรูป */
+.cfp-topbar .page-title {
+  font-size: 1.15rem; font-weight: 700;
+  color: var(--cfp-text); line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+/* Subtitle เล็กใต้ title */
+.topbar-subtitle {
+  font-size: 0.72rem; color: var(--cfp-text-muted);
+  font-weight: 400; display: block; margin-top: 2px;
+}
+
+.cfp-topbar .topbar-right {
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* Elevation button */
+.topbar-elev-btn {
+  font-family: 'Prompt',sans-serif; font-size: 0.76rem;
+  background: var(--cfp-bg); color: var(--cfp-text-mid);
+  border: 1px solid var(--cfp-border);
+  border-radius: 20px; padding: 5px 13px; cursor: pointer;
+  display: flex; align-items: center; gap: 5px;
+  transition: all .15s;
+}
+.topbar-elev-btn:hover {
+  background: var(--cfp-hover); color: var(--cfp-primary);
+}
+.topbar-elev-btn .bi { color: var(--cfp-primary); }
+
+/* icon buttons — วงกลม ตามรูป */
+.topbar-ic-round {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--cfp-bg);
+  border: 1px solid var(--cfp-border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--cfp-text-mid); font-size: 0.88rem; cursor: pointer;
+  transition: all 0.14s;
+}
+.topbar-ic-round:hover {
+  background: var(--cfp-hover);
+  border-color: var(--cfp-border-strong);
+  color: var(--cfp-primary);
+}
+/* compat: ชื่อเดิม .topbar-ic ก็ยังใช้ได้ */
+.cfp-topbar .topbar-ic {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--cfp-bg); border: 1px solid var(--cfp-border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--cfp-text-mid); font-size: 0.88rem; cursor: pointer;
+  transition: all 0.14s; text-decoration: none;
+}
+.cfp-topbar .topbar-ic:hover {
+  background: var(--cfp-hover); border-color: var(--cfp-border-strong);
+  color: var(--cfp-primary);
+}
+
+/* User avatar teal วงกลม — ตามรูป */
+.topbar-avatar {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--cfp-primary); color: #fff;
+  font-size: 0.76rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; cursor: pointer; position: relative;
+  box-shadow: 0 2px 8px rgba(42,171,184,0.3);
+}
+/* dot indicator เมื่อ elevated */
+.topbar-elev-dot {
+  position: absolute; top: 0; right: 0;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--cfp-warning);
+  border: 2px solid #fff;
+}
+
+/* Dropdown */
+.cfp-topbar .dropdown-menu {
+  font-family: 'Prompt',sans-serif; font-size: 0.84rem;
+  border: 1px solid var(--cfp-border); border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(26,58,72,0.1); padding: 6px;
+  min-width: 200px;
+}
+.cfp-topbar .dropdown-item {
+  border-radius: 7px; padding: 7px 12px; color: var(--cfp-text);
+}
+.cfp-topbar .dropdown-item:hover {
+  background: var(--cfp-hover); color: var(--cfp-primary);
+}
+
+/* Breadcrumb subbar */
+.cfp-breadcrumb {
+  background: #fff; border-bottom: 1px solid var(--cfp-border);
+  padding: 6px 1.5rem; font-size: 0.76rem; color: var(--cfp-text-muted);
+  display: flex; align-items: center; gap: 6px;
+  box-shadow: 0 1px 4px rgba(42,100,130,0.05);
+}
+.cfp-breadcrumb strong { color: var(--cfp-text); }
+
+/* ===== MAIN LAYOUT ===== */
+.cfp-main {
+  margin-left: var(--cfp-sidebar-w);
+  width: calc(100% - var(--cfp-sidebar-w));
+  min-height: 100vh; display: flex; flex-direction: column;
+}
+.cfp-content { padding: 1.5rem; flex: 1; }
+
+/* ===== CARDS ===== */
+.cfp-card {
+  background: var(--cfp-card); border: 1px solid var(--cfp-border);
+  border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;
+  box-shadow: 0 1px 5px rgba(42,100,130,0.06);
+}
+.cfp-card-header {
+  font-size: 0.9rem; font-weight: 700; color: var(--cfp-text);
+  padding-bottom: 0.75rem; margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--cfp-border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.cfp-card-header .bi { color: var(--cfp-primary); }
+.cfp-card-value {
+  font-size: 1.6rem; font-weight: 700; color: var(--cfp-text);
+  line-height: 1.2; letter-spacing: -0.02em;
+}
+.cfp-card-unit { font-size: 0.72rem; color: var(--cfp-text-muted); }
+
+/* ===== BUTTONS ===== */
+.btn-cfp-primary {
+  background: var(--cfp-primary); border-color: var(--cfp-primary);
+  color: #fff; font-family: 'Prompt',sans-serif;
+  font-size: 0.85rem; font-weight: 500; border-radius: 8px;
+}
+.btn-cfp-primary:hover, .btn-cfp-primary:focus {
+  background: var(--cfp-primary-dark); border-color: var(--cfp-primary-dark);
+  color: #fff; box-shadow: 0 4px 12px rgba(42,171,184,0.3);
+}
+.btn-cfp-success {
+  background: var(--cfp-primary); border-color: var(--cfp-primary);
+  color: #fff; font-family: 'Prompt',sans-serif;
+  font-size: 0.85rem; font-weight: 500; border-radius: 8px;
+}
+.btn-cfp-success:hover, .btn-cfp-success:focus {
+  background: var(--cfp-primary-dark); border-color: var(--cfp-primary-dark); color: #fff;
+}
+
+/* ===== SWEETALERT2 ===== */
+.font-prompt { font-family: 'Prompt',sans-serif !important; }
+/* ใช้ confirmButtonColor: '#2AABB8' ทุกที่ */
+
+/* ===== STATUS BADGES ===== */
+.badge-draft {
+  background: #F1F5F5 !important; color: #5A8A98 !important;
+  border: 1px solid #D0E8EE !important;
+}
+.badge-submitted {
+  background: #FFF8E8 !important; color: #8A6A00 !important;
+  border: 1px solid #FFE082 !important;
+}
+.badge-reviewed {
+  background: #E8F4FF !important; color: #1A4A7A !important;
+  border: 1px solid #B0C8E8 !important;
+}
+.badge-approved {
+  background: #E4F8F0 !important; color: #1A6A50 !important;
+  border: 1px solid #A0DCC8 !important;
+}
+.badge-closed {
+  background: #E0F8F4 !important; color: #0A5A48 !important;
+  border: 1px solid #88D8C8 !important;
+}
+
+/* ===== SCOPE BADGES ===== */
+.badge-scope1 {
+  background: #E4F8EE !important; color: #1A6A50 !important;
+  border: 1px solid #A0DCC8 !important;
+}
+.badge-scope2 {
+  background: #E4F6F8 !important; color: #1A6070 !important;
+  border: 1px solid #A0D8E4 !important;
+}
+.badge-scope3 {
+  background: #E0F0F8 !important; color: #1A5070 !important;
+  border: 1px solid #A0C8DC !important;
+}
+
+/* ===== FORM ===== */
+.form-label {
+  font-size: 0.85rem; font-weight: 500;
+  color: var(--cfp-text); margin-bottom: 4px;
+}
+.form-control, .form-select {
+  font-family: 'Prompt',sans-serif; font-size: 0.85rem;
+  border-color: var(--cfp-border); border-radius: 8px;
+  background-color: var(--cfp-white); color: var(--cfp-text);
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--cfp-primary);
+  box-shadow: 0 0 0 3px rgba(42,171,184,0.12); outline: none;
+}
+.form-control::placeholder { color: var(--cfp-text-light); }
+.input-group-text {
+  background: var(--cfp-bg); border-color: var(--cfp-border);
+  color: var(--cfp-text-muted); border-radius: 8px 0 0 8px;
+}
+.form-required::after { content: ' *'; color: var(--cfp-danger); }
+
+/* ===== TABLE ===== */
+.table thead th {
+  background: var(--cfp-bg); color: var(--cfp-text);
+  font-weight: 600; font-size: 0.82rem;
+  border-color: var(--cfp-border); white-space: nowrap;
+}
+.table thead th .bi { color: var(--cfp-primary); }
+.table tbody tr:hover td { background: var(--cfp-hover); }
+.table td {
+  font-size: 0.84rem; vertical-align: middle;
+  border-color: var(--cfp-border); color: var(--cfp-text);
+}
+.table-bordered { border-color: var(--cfp-border); }
+
+/* ===== MODAL ===== */
+.modal-content { border: none; border-radius: 14px; font-family: 'Prompt',sans-serif; }
+.modal-header {
+  background: var(--cfp-primary);
+  border-radius: 14px 14px 0 0;
+  padding: 14px 20px; border: none;
+}
+.modal-title { color: #fff; font-size: 0.9rem; font-weight: 600; }
+.modal-body { padding: 20px; color: var(--cfp-text); }
+.modal-footer { padding: 12px 20px; border-top: 1px solid var(--cfp-border); }
+
+/* ===== DROPDOWN ===== */
+.dropdown-menu {
+  font-family: 'Prompt',sans-serif; font-size: 0.84rem;
+  border: 1px solid var(--cfp-border); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(26,58,72,0.1); padding: 6px;
+}
+.dropdown-item { border-radius: 6px; padding: 7px 12px; color: var(--cfp-text); font-size: 0.84rem; }
+.dropdown-item:hover { background: var(--cfp-hover); color: var(--cfp-primary); }
+.dropdown-divider { border-color: var(--cfp-border); margin: 4px 0; }
+
+/* ===== PAGINATION ===== */
+.page-link {
+  font-family: 'Prompt',sans-serif; font-size: 0.82rem;
+  color: var(--cfp-primary); border-color: var(--cfp-border); border-radius: 6px;
+}
+.page-link:hover {
+  background: var(--cfp-hover); color: var(--cfp-primary-dark);
+  border-color: var(--cfp-border-strong);
+}
+.page-item.active .page-link {
+  background: var(--cfp-primary); border-color: var(--cfp-primary); color: #fff;
+}
+
+/* ===== DATATABLES ===== */
+.dataTables_wrapper .dataTables_filter input,
+.dataTables_wrapper .dataTables_length select {
+  font-family: 'Prompt',sans-serif; font-size: 0.82rem;
+  border: 1px solid var(--cfp-border); border-radius: 7px;
+  padding: 4px 8px; color: var(--cfp-text);
+}
+.dataTables_wrapper .dataTables_filter input:focus,
+.dataTables_wrapper .dataTables_length select:focus {
+  border-color: var(--cfp-primary);
+  box-shadow: 0 0 0 3px rgba(42,171,184,0.1); outline: none;
+}
+
+/* ===== ALERT ===== */
+.alert { font-size: 0.84rem; border-radius: 10px; font-family: 'Prompt',sans-serif; }
+.alert-success { background:#E4F8F0; border-color:#A0DCC8; color:#1A6A50; }
+.alert-danger  { background:#FEF2F2; border-color:#FECACA; color:#991B1B; }
+.alert-warning { background:#FFF8E8; border-color:#FFE082; color:#8A6A00; }
+.alert-info    { background:#E4F6F8; border-color:#A0D8E4; color:#1A5070; }
+
+/* ===== KPI CARD ===== */
+.cfp-kpi {
+  background: var(--cfp-card); border: 1px solid var(--cfp-border);
+  border-radius: 12px; padding: 1.1rem 1.25rem; height: 100%;
+  transition: box-shadow 0.15s; position: relative; overflow: hidden;
+}
+.cfp-kpi::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0;
+  height: 3px; border-radius: 12px 12px 0 0;
+}
+.cfp-kpi.kpi-s1::before  { background: linear-gradient(90deg,#5CC8A0,#2AABB8); }
+.cfp-kpi.kpi-s2::before  { background: linear-gradient(90deg,#2AABB8,#5CC8D8); }
+.cfp-kpi.kpi-s3::before  { background: linear-gradient(90deg,#7AC8D8,#A8D4E8); }
+.cfp-kpi.kpi-tot::before { background: linear-gradient(90deg,#A8D8C0,#2AABB8,#A8D4E8); }
+.cfp-kpi:hover { box-shadow: 0 4px 14px rgba(42,171,184,0.1); }
+
+/* ===== UTILITIES ===== */
+.text-cfp-primary  { color: var(--cfp-primary)   !important; }
+.text-cfp-muted    { color: var(--cfp-text-muted) !important; }
+.bg-cfp-primary    { background: var(--cfp-primary) !important; color: #fff !important; }
+.bg-cfp-light      { background: var(--cfp-bg) !important; }
+.border-cfp        { border-color: var(--cfp-border) !important; }
+.fw-500            { font-weight: 500 !important; }
+.fw-600            { font-weight: 600 !important; }
+.rounded-cfp       { border-radius: 10px !important; }
+
+/* ===== ELEVATION BANNER ===== */
+#elevationBanner {
+  background: #FFF8E8; border-bottom: 1px solid #FFE082;
+  padding: 6px 1.5rem; display: flex; align-items: center;
+  justify-content: space-between; font-family: 'Prompt',sans-serif;
+  position: sticky; top: 0; z-index: 901;
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes cfpPulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%     { opacity: 0.35; transform: scale(0.85); }
+}
+@keyframes cfpFadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes cfpSpinCircle { to { transform: rotate(360deg); } }
+
+.cfp-fade-up { animation: cfpFadeUp 0.35s ease both; }
+
+/* ===== RESPONSIVE — Topbar & Content ===== */
+@media (max-width: 767px) {
+  /* ข้อ 1: ซ่อนหัวข้อหน้า — แสดงแค่ hamburger + icon + bell + settings + avatar */
+  .cfp-topbar .page-title      { display: none !important; }
+  .cfp-topbar .topbar-subtitle { display: none !important; }
+
+  /* ข้อ 2: Tab scroll แนวนอน — swipe ได้, ไม่แตะจอใหญ่ */
+  .cfp-tab-scroll-wrap { position: relative; }
+  .cfp-tab-scroll-wrap::after {
+    content: '';
+    position: absolute; top: 0; right: 0; bottom: 0; width: 44px;
+    background: linear-gradient(to right, transparent, rgba(255,255,255,0.95));
+    pointer-events: none; z-index: 1;
+  }
+  .cfp-tab-scroll-inner {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 8px;
+    overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-right: 44px; padding-bottom: 2px;
+  }
+  .cfp-tab-scroll-inner::-webkit-scrollbar { display: none; }
+  .cfp-tab-scroll-inner .tab-nav-btn {
+    flex-shrink: 0; min-height: 40px;
+    padding: 7px 13px; font-size: 0.8rem; white-space: nowrap;
+  }
+
+  /* ข้อ 4: DataTable controls — length ซ้าย / search กึ่งกลาง คนละบรรทัด */
+  .cfp-dt-length { text-align: left !important; }
+  .cfp-dt-filter { text-align: center !important; }
+  .cfp-dt-filter label { display: flex; justify-content: center !important; flex-wrap: wrap; }
+  .cfp-dt-filter input { width: 100%; margin: 4px 0 0 0 !important; display: block; }
+  .dataTables_wrapper .dataTables_info,
+  .dataTables_wrapper .dataTables_paginate { text-align: center !important; float: none !important; }
+}
+
+/* จอใหญ่: tab flex-wrap ปกติ / search ชิดขวา */
+@media (min-width: 768px) {
+  .cfp-tab-scroll-inner { display: flex !important; flex-wrap: wrap !important; overflow: visible !important; }
+  .cfp-tab-scroll-wrap::after { display: none !important; }
+  .cfp-dt-filter { text-align: right !important; }
+  .cfp-dt-filter label { justify-content: flex-end !important; }
+}
+
+/* ===== KPI GRID RESPONSIVE ===== */
+.cfp-kpi-grid {
+  display: grid; grid-template-columns: repeat(4,1fr); gap: 1rem;
+}
+@media (max-width: 991px) { .cfp-kpi-grid { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 575px) { .cfp-kpi-grid { grid-template-columns: 1fr; } }
+
+.cfp-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ==============================================
+   LOOKUP CRUD PAGES — Master Data Components
+   ใช้กับ master/lookup_*.php ทั้ง 13 ไฟล์
+   ============================================== */
+
+/* Page header bar: title + ปุ่ม Import Excel + ปุ่มเพิ่ม */
+.cfp-page-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px; flex-wrap: wrap; gap: 10px;
+}
+.cfp-page-toolbar-title {
+  font-size: 0.95rem; font-weight: 600; color: var(--cfp-text);
+  display: flex; align-items: center; gap: 8px;
+}
+.cfp-page-toolbar-title .title-icon {
+  width: 30px; height: 30px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--cfp-primary), var(--cfp-primary-light));
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 0.85rem;
+}
+.cfp-page-toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ปุ่ม Import Excel */
+.btn-cfp-import {
+  font-family: 'Prompt', sans-serif; font-size: 0.82rem;
+  background: #fff; color: var(--cfp-primary);
+  border: 1.5px solid var(--cfp-primary);
+  border-radius: 8px; padding: 6px 14px; cursor: pointer;
+  display: flex; align-items: center; gap: 6px; transition: all .15s;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-cfp-import::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -120%;
+  width: 40%;
+  height: 200%;
+  background: linear-gradient(
+    120deg,
+    transparent,
+    rgba(255,255,255,0.03),
+    rgba(255,255,255,0.12),
+    rgba(255,255,255,0.03),
+    transparent
+  );
+  transform: rotate(25deg);
+  transition: left 1s ease;
+}
+
+.btn-cfp-import:hover {
+  background: var(--cfp-hover); 
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.btn-cfp-import:hover::before {
+  left: 150%;
+}
+
+/* ปุ่มเพิ่มข้อมูล — teal gradient */
+.btn-cfp-add {
+  position: relative;
+  overflow: hidden;
+  font-family: 'Prompt', sans-serif;
+  font-size: 0.82rem;
+  background: linear-gradient(135deg, var(--cfp-primary), var(--cfp-primary-light));
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 3px 8px rgba(42,171,184,0.25);
+  transition: all .3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.btn-cfp-add::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -120%;
+  width: 40%;
+  height: 200%;
+  background: linear-gradient(
+    120deg,
+    transparent,
+    rgba(255,255,255,0.03),
+    rgba(255,255,255,0.12),
+    rgba(255,255,255,0.03),
+    transparent
+  );
+  transform: rotate(25deg);
+  transition: left 1s ease;
+}
+
+.btn-cfp-add:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.btn-cfp-add:hover::before {
+  left: 150%;
+}
+
+/* Status badge — ใช้งาน / ปิดใช้งาน */
+.badge-cfp-active {
+  background: #E8F5E9; color: #2E7D32;
+  border-radius: 20px; padding: 3px 12px;
+  font-size: 0.75rem; font-weight: 600;
+}
+.badge-cfp-inactive {
+  background: #FCE4E4; color: #C62828;
+  border-radius: 20px; padding: 3px 12px;
+  font-size: 0.75rem; font-weight: 600;
+}
+
+/* ปุ่ม action ในตาราง (แก้ไข/ลบ) */
+.btn-cfp-icon {
+  width: 30px; height: 30px; border-radius: 7px; border: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.8rem; cursor: pointer; transition: all .15s;
+}
+.btn-cfp-icon-edit { background: var(--cfp-hover); color: var(--cfp-primary); }
+.btn-cfp-icon-edit:hover { background: var(--cfp-primary); color: #fff; }
+.btn-cfp-icon-del { background: #FCE4E4; color: var(--cfp-danger); }
+.btn-cfp-icon-del:hover { background: var(--cfp-danger); color: #fff; }
+
+/* DataTable length + search — ป้องกัน label ซ้อนกับ select/input */
+.dataTables_length label,
+.dataTables_filter label {
+  font-size: 0.82rem; color: var(--cfp-text-muted);
+  font-family: 'Prompt', sans-serif;
+  display: flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.dataTables_length select {
+  font-family: 'Prompt', sans-serif; font-size: 0.82rem;
+  border: 1px solid var(--cfp-border); border-radius: 6px;
+  padding: 4px 10px; color: var(--cfp-text); margin: 0 4px;
+}
+.dataTables_filter input {
+  font-family: 'Prompt', sans-serif; font-size: 0.82rem;
+  border: 1px solid var(--cfp-border); border-radius: 6px;
+  padding: 5px 10px; color: var(--cfp-text); margin-left: 6px; outline: none;
+}
+.dataTables_filter input:focus {
+  border-color: var(--cfp-primary);
+  box-shadow: 0 0 0 3px rgba(42,171,184,0.12);
+}
+table.dataTable thead th {
+  background: linear-gradient(90deg, #F0FAFB, #F6FCFD);
+  color: var(--cfp-text-mid); font-weight: 600; font-size: 0.8rem;
+  border-bottom: 1.5px solid var(--cfp-border);
+}
+table.dataTable tbody tr:hover td { background: #F4FBFC; }
+.dataTables_paginate .paginate_button.current,
+.dataTables_paginate .paginate_button.current:hover {
+  background: linear-gradient(135deg, var(--cfp-primary), var(--cfp-primary-light)) !important;
+  color: #fff !important; border-color: transparent !important; border-radius: 6px !important;
+}
+.dataTables_paginate .paginate_button:hover {
+  background: var(--cfp-hover) !important;
+  color: var(--cfp-primary) !important; border-color: var(--cfp-border) !important;
+}
+
+/* Modal form — เพิ่ม/แก้ไข Lookup */
+.modal-cfp .modal-content { border-radius: 14px; border: none; }
+.modal-cfp .modal-header {
+  background: linear-gradient(135deg, var(--cfp-primary), var(--cfp-primary-light));
+  color: #fff; border-radius: 14px 14px 0 0; border-bottom: none;
+}
+.modal-cfp .modal-header .btn-close { filter: invert(1) brightness(2); }
+.modal-cfp .form-label { font-size: 0.85rem; color: var(--cfp-text-mid); font-weight: 500; }
+.modal-cfp .form-control,
+.modal-cfp .form-select {
+  font-family: 'Prompt', sans-serif; border: 1px solid var(--cfp-border);
+  border-radius: 8px; font-size: 0.88rem;
+}
+.modal-cfp .form-control:focus,
+.modal-cfp .form-select:focus {
+  border-color: var(--cfp-primary);
+  box-shadow: 0 0 0 3px rgba(42,171,184,0.12);
+}
+
+/* Import Excel modal — drag-drop zone */
+.cfp-import-dropzone {
+  border: 2px dashed var(--cfp-border-strong);
+  border-radius: 12px; padding: 30px 20px; text-align: center;
+  background: var(--cfp-bg); cursor: pointer; transition: all .15s;
+}
+.cfp-import-dropzone:hover,
+.cfp-import-dropzone.dragover {
+  border-color: var(--cfp-primary); background: var(--cfp-hover);
+}
+.cfp-import-dropzone i { font-size: 2rem; color: var(--cfp-primary); }
+.cfp-import-template-link {
+  font-size: 0.82rem; color: var(--cfp-primary); text-decoration: underline; cursor: pointer;
+}
+
+/* Import result summary */
+.cfp-import-summary {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px;
+}
+.cfp-import-stat {
+  text-align: center; padding: 10px; border-radius: 10px;
+}
+.cfp-import-stat.success { background: #E8F5E9; color: #2E7D32; }
+.cfp-import-stat.fail    { background: #FCE4E4; color: #C62828; }
+.cfp-import-stat.skip    { background: #FFF3E0; color: #E65100; }
+.cfp-import-stat .num { font-size: 1.3rem; font-weight: 700; }
+.cfp-import-stat .lbl { font-size: 0.7rem; }
+
+/* ============================================================
+   KRAJEE FILEINPUT — CUSTOM BROWSE BUTTON
+   ============================================================ */
+
+/* ---- ปุ่ม Browse (เลือกไฟล์) ---- */
+.fileinput-upload-button,
+.fileinput-upload-button.btn-fileinput,
+#file-1 .btn-fileinput {
+    background: linear-gradient(135deg, var(--cfp-primary), var(--cfp-primary-light)) !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 6px 18px !important;
+    font-family: 'Prompt', sans-serif !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    box-shadow: 0 2px 8px rgba(42, 171, 184, 0.25) !important;
+    transition: all 0.25s ease !important;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+}
+
+.fileinput-upload-button:hover,
+.fileinput-upload-button.btn-fileinput:hover,
+#file-1 .btn-fileinput:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(42, 171, 184, 0.4) !important;
+    filter: brightness(1.05);
+    background: linear-gradient(135deg, var(--cfp-primary-dark), var(--cfp-primary)) !important;
+}
+
+.fileinput-upload-button:active,
+#file-1 .btn-fileinput:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(42, 171, 184, 0.2) !important;
+}
+
+/* ---- ปุ่มอื่น ๆ ใน FileInput (ยกเลิก, ลบ) ---- */
+.fileinput-remove-button {
+    font-family: 'Prompt', sans-serif !important;
+    border-radius: 8px !important;
+    padding: 6px 16px !important;
+    font-size: 0.82rem !important;
+    border: 1px solid var(--cfp-border) !important;
+    color: var(--cfp-text-mid) !important;
+    background: #fff !important;
+    transition: all 0.2s ease !important;
+}
+.fileinput-remove-button:hover {
+    background: var(--cfp-hover) !important;
+    border-color: var(--cfp-border-strong) !important;
+    color: var(--cfp-text) !important;
+}
+
+/* ---- Drag & Drop Zone ---- */
+.file-drop-zone {
+    border: 2px dashed var(--cfp-border-strong) !important;
+    border-radius: 12px !important;
+    background: var(--cfp-bg) !important;
+    transition: all 0.2s ease !important;
+    font-family: 'Prompt', sans-serif !important;
+}
+.file-drop-zone:hover {
+    border-color: var(--cfp-primary) !important;
+    background: var(--cfp-hover) !important;
+}
+.file-drop-zone .file-drop-zone-title {
+    color: var(--cfp-text-muted) !important;
+    font-size: 0.9rem !important;
+}
+
+/* ---- Caption (ชื่อไฟล์) ---- */
+.file-caption-name {
+    font-family: 'Prompt', sans-serif !important;
+    font-size: 0.85rem !important;
+    color: var(--cfp-text) !important;
+}
+
+/* ---- Preview Frame ---- */
+.file-preview-frame {
+    border-radius: 10px !important;
+    border: 1px solid var(--cfp-border) !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04) !important;
+}
+.file-preview-frame:hover {
+    border-color: var(--cfp-primary) !important;
+    box-shadow: 0 2px 10px rgba(42,171,184,0.12) !important;
+}
+.file-preview .file-actions .btn {
+    font-family: 'Prompt', sans-serif !important;
+    border-radius: 6px !important;
+}

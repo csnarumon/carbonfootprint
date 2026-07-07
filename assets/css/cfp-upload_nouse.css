@@ -1,0 +1,176 @@
+/* ==============================================
+   assets/css/cfp-upload.css  v3
+   Upload grid รวมใน dropzone เดียว
+   ============================================== */
+
+/* ===== กรอบ Dropzone หลัก — รวม grid ไว้ใน ===== */
+.cfp-upload-dropzone {
+  border: 2px dashed var(--cfp-primary);
+  border-radius: 12px;
+  padding: 12px;
+  background: #EEF6F8;
+  transition: background 0.2s, border-color 0.2s;
+  cursor: default;
+  min-height: 96px;
+}
+.cfp-upload-dropzone.dragover {
+  background: #D8EDF4;
+  border-color: var(--cfp-primary-dark);
+}
+
+/* Grid ภายใน dropzone */
+.cfp-upload-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+/* ===== Thumbnail card (existing + pending) ===== */
+.cfp-thumb-card {
+  position: relative;
+  width: 88px; height: 88px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid var(--cfp-border);
+  background: #f5f5f5;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cfp-thumb-card:hover {
+  border-color: var(--cfp-primary);
+  box-shadow: 0 2px 8px rgba(42,171,184,0.2);
+}
+.cfp-thumb-card.is-primary {
+  border-color: var(--cfp-primary);
+  border-width: 2.5px;
+}
+.cfp-thumb-card.is-pending {
+  border-color: #FFA726;
+  cursor: default;
+}
+.cfp-thumb-card img.cfp-thumb-img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
+/* PDF icon card */
+.cfp-thumb-card.is-pdf {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 3px; background: #FFF3F3;
+}
+.cfp-thumb-card.is-pdf .cfp-thumb-pdf-icon {
+  font-size: 1.8rem; color: #E53935; line-height: 1;
+}
+.cfp-thumb-card.is-pdf .cfp-thumb-pdf-name {
+  font-size: 0.58rem; color: #888;
+  padding: 0 4px; text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  width: 100%;
+}
+
+/* Primary badge */
+.cfp-thumb-primary-badge {
+  position: absolute; top: 4px; left: 4px;
+  background: var(--cfp-primary); color: #fff;
+  font-size: 0.58rem; font-weight: 700;
+  padding: 1px 5px; border-radius: 4px;
+  pointer-events: none; line-height: 1.5;
+}
+
+/* Overlay actions (hover) */
+.cfp-thumb-overlay {
+  position: absolute; inset: 0;
+  background: rgba(22,52,62,0.58);
+  opacity: 0; transition: opacity 0.16s;
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px;
+}
+.cfp-thumb-card:hover .cfp-thumb-overlay { opacity: 1; }
+.cfp-thumb-overlay-btn {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: none; cursor: pointer; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.82rem; transition: transform 0.15s;
+  background: rgba(255,255,255,0.22);
+}
+.cfp-thumb-overlay-btn:hover { transform: scale(1.15); }
+.cfp-thumb-overlay-btn.btn-star  { background: var(--cfp-primary); }
+.cfp-thumb-overlay-btn.btn-trash { background: var(--cfp-danger,#DC3545); }
+
+/* Progress shimmer บน pending card */
+.cfp-thumb-card.is-pending::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--cfp-primary) 0%, #a8ede0 50%, var(--cfp-primary) 100%);
+  background-size: 200% 100%;
+  animation: cfpShimmer 1.2s linear infinite;
+}
+@keyframes cfpShimmer {
+  0%  { background-position: 200% 0; }
+  100%{ background-position: -200% 0; }
+}
+
+/* ===== ปุ่ม "เพิ่มรูป" card ===== */
+.cfp-thumb-add-card {
+  width: 88px; height: 88px; border-radius: 10px;
+  border: 2px dashed var(--cfp-border); background: #fff;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 4px;
+  cursor: pointer; flex-shrink: 0;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+}
+.cfp-thumb-add-card:hover {
+  border-color: var(--cfp-primary); background: #EEF9FB;
+}
+.cfp-thumb-add-card .cfp-add-icon {
+  font-size: 1.4rem; color: var(--cfp-primary); line-height: 1;
+}
+.cfp-thumb-add-card .cfp-add-label {
+  font-size: 0.68rem; color: var(--cfp-text-muted);
+}
+
+/* placeholder เมื่อยังไม่มีรูปและยังไม่ได้ save */
+.cfp-upload-placeholder {
+  padding: 20px 0; text-align: center; width: 100%;
+  font-size: 0.8rem; color: var(--cfp-text-muted);
+}
+.cfp-upload-placeholder i { font-size: 1.6rem; display: block; margin-bottom: 6px; color: var(--cfp-primary); opacity: 0.4; }
+
+/* ===== Lightbox ===== */
+.cfp-lightbox {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.88); z-index: 9999;
+  align-items: center; justify-content: center; flex-direction: column;
+}
+.cfp-lightbox.open { display: flex; }
+.cfp-lightbox img {
+  max-width: 90vw; max-height: 85vh;
+  border-radius: 10px; box-shadow: 0 4px 32px rgba(0,0,0,0.5);
+  object-fit: contain;
+}
+.cfp-lightbox-caption { color: #fff; font-size: 0.85rem; margin-top: 12px; opacity: 0.8; }
+.cfp-lightbox-close {
+  position: fixed; top: 16px; right: 20px;
+  color: #fff; font-size: 1.6rem; cursor: pointer;
+  background: none; border: none; opacity: 0.8; line-height: 1;
+}
+.cfp-lightbox-close:hover { opacity: 1; }
+.cfp-lightbox-nav {
+  position: fixed; top: 50%; transform: translateY(-50%);
+  color: #fff; font-size: 2rem; cursor: pointer;
+  background: rgba(255,255,255,0.12); border: none; border-radius: 50%;
+  width: 44px; height: 44px; display: flex;
+  align-items: center; justify-content: center;
+  opacity: 0.7; transition: opacity 0.15s, background 0.15s;
+}
+.cfp-lightbox-nav:hover { opacity: 1; background: rgba(255,255,255,0.22); }
+.cfp-lightbox-nav.prev { left: 12px; }
+.cfp-lightbox-nav.next { right: 12px; }
+
+/* responsive */
+@media (max-width: 576px) {
+  .cfp-thumb-card, .cfp-thumb-add-card { width: 72px; height: 72px; }
+}

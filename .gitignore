@@ -1,0 +1,19 @@
+# Credentials
+config/db.php
+config/config_mail.php
+
+# Dependencies
+vendor/
+
+# Logs & uploads
+logs/
+uploads/
+
+# OS / IDE
+Thumbs.db
+.vscode/
+
+# Database dumps (มีข้อมูลจริง)
+*.sql
+dbCarbonFootprint_v9
+dbCarbonFootprint_v12
