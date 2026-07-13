@@ -12,6 +12,7 @@ uploads/
 # OS / IDE
 Thumbs.db
 .vscode/
+.claude/settings.json
 
 # Database dumps (มีข้อมูลจริง)
 *.sql
@@ -19,8 +20,5 @@ dbCarbonFootprint_v9
 dbCarbonFootprint_v12
 dbCarbonFootprint_bak_withdata
 
-# Reference PDFs (ไม่ต้อง track)
-EF_CFO.pdf
-EF_TGO.pdf
-Emission Factor_2569.pdf
-Emission Factor CFO*.pdf
+# PDF files (ไม่ต้อง track ทั้งโปรเจกต์)
+*.pdf
