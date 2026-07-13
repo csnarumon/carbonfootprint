@@ -3,14 +3,14 @@
    workflow/month_close_handler.php
    รับ POST จาก month_close.php
    action: close_month
-   1. ตรวจสิทธิ์ Role 5 เท่านั้น
+   1. ตรวจสิทธิ์ Role 3 (Approver) หรือ Role 5 (SustainAdmin)
    2. ตรวจว่าทุก Site × Scope Status = 2 (Approved)
    3. INSERT CFP_MonthlySnapshot (Snapshot ณ วันปิดเดือน)
    4. UPDATE CFP_MonthlyHeader SET Status=3, ClosedBy, ClosedDate
    ============================================================= */
 require_once '../includes/auth_check.php';
 require_once '../config/db.php';
-requireRole(array(5));
+requireRole(array(3, 5));
 
 $conn   = getConnection();
 $userID = (int)$_SESSION['user_id'];

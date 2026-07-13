@@ -4,7 +4,10 @@
    (อัปเดตสำหรับ iframe shell: เพิ่ม data-page ใน nav-link)
    ============================================== */
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
-$roleID      = (int)$_SESSION['role_id'];
+/* ── ใช้ Effective Role/UserID เสมอ — ถ้า Admin กำลัง View-as จะเห็นเมนูตรงกับ user ที่สวมอยู่จริง ── */
+$roleID      = getEffectiveRole();
+/* ── Admin IT (4) และ Sustainability Admin (5): เมนูเริ่มต้นแบบย่อ (เพราะมีเมนูเยอะ) ── สิทธิ์อื่นเริ่มต้นแบบขยาย ── */
+$defaultOpen = !in_array($roleID, array(4, 5));
 $roleNames   = array(
     1 => 'Data Entry',
     2 => 'Reviewer',
@@ -14,7 +17,24 @@ $roleNames   = array(
     6 => 'Viewer',
 );
 
-$fullname  = $_SESSION['fullname'] ?? '';
+/* ── สิทธิ์ Scope ของ Data Entry (roleID 1) — Admin/SustainAdmin เห็นทุก Scope เสมอ ── */
+$allowedScopes = array(1 => true, 2 => true, 3 => true);
+if ($roleID === 1 && isset($conn)) {
+    $userID = getEffectiveUserID();
+    $allowedScopes = array();
+    $resMyScope = sqlsrv_query($conn,
+        "SELECT ScopeNo FROM CFP_UserScopeAccess WHERE UserID = ? AND IsActive = 1",
+        array($userID)
+    );
+    if ($resMyScope) {
+        while ($r = sqlsrv_fetch_array($resMyScope, SQLSRV_FETCH_ASSOC)) {
+            $allowedScopes[(int)$r['ScopeNo']] = true;
+        }
+    }
+}
+
+/* ── View-as: แสดงชื่อ/role ของ user ที่กำลังสวมอยู่แทน Admin ตัวจริง ── */
+$fullname  = isViewingAs() ? ($_SESSION['view_as_name'] ?? '') : ($_SESSION['fullname'] ?? '');
 $initials  = '';
 $nameParts = explode(' ', trim($fullname));
 if (count($nameParts) >= 2) {
@@ -47,13 +67,15 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
     $collapseClass = '';
 
     $scopeClass = '';
-    if (strpos($badgeClass, 'entry') !== false)     $scopeClass = 'entry';
+    if (strpos($badgeClass, 'assetreq') !== false)  $scopeClass = 'assetreq';
+    elseif (strpos($badgeClass, 'entry') !== false)     $scopeClass = 'entry';
     elseif (strpos($badgeClass, 'review') !== false) $scopeClass = 'review';
     elseif (strpos($badgeClass, 'scope1') !== false) $scopeClass = 'scope1';
     elseif (strpos($badgeClass, 'scope2') !== false) $scopeClass = 'scope2';
     elseif (strpos($badgeClass, 'scope3') !== false) $scopeClass = 'scope3';
     elseif (strpos($badgeClass, 'settings') !== false) $scopeClass = 'settings';
     elseif (strpos($badgeClass, 'reference') !== false) $scopeClass = 'reference';
+    elseif (strpos($badgeClass, 'admin-light') !== false) $scopeClass = 'admin-light';
     elseif (strpos($badgeClass, 'admin') !== false)  $scopeClass = 'admin';
     elseif (strpos($badgeClass, 'report') !== false) $scopeClass = 'report';
 
@@ -126,42 +148,78 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
         <?php
         // ── 1. บันทึกข้อมูล ──────────────────────────────
         if (in_array($roleID, array(1, 4))) {
-            $items  = cfpNavLink('/carbonfootprint/data_entry/scope1.php','fire','Scope 1 — Direct','scope1',$currentPage,'scope1');
-            $items .= cfpNavLink('/carbonfootprint/data_entry/scope2.php','lightning-charge','Scope 2 — Energy','scope2',$currentPage,'scope2');
-            $items .= cfpNavLink('/carbonfootprint/data_entry/scope3.php','globe-asia-australia','Scope 3 — Other','scope3',$currentPage,'scope3');
-            echo cfpCollapsibleSection('บันทึกข้อมูล', 'pencil-square', 'S1,S2,S3', 'entry-badge', $items, true);
+            $items = '';
+            $badges = array();
+            if (!empty($allowedScopes[1])) {
+                $items   .= cfpNavLink('/carbonfootprint/data_entry/scope1.php','fire','Scope 1 — Direct','scope1',$currentPage,'scope1');
+                $badges[] = 'S1';
+            }
+            if (!empty($allowedScopes[2])) {
+                $items   .= cfpNavLink('/carbonfootprint/data_entry/scope2.php','lightning-charge','Scope 2 — Energy','scope2',$currentPage,'scope2');
+                $badges[] = 'S2';
+            }
+            if (!empty($allowedScopes[3])) {
+                $items   .= cfpNavLink('/carbonfootprint/data_entry/scope3.php','globe-asia-australia','Scope 3 — Other','scope3',$currentPage,'scope3');
+                $badges[] = 'S3';
+            }
+            if ($items !== '') {
+                echo cfpCollapsibleSection('บันทึกข้อมูล', 'pencil-square', implode(',', $badges), 'entry-badge', $items, $defaultOpen);
+            }
+        }
+
+        // ── 1b. คำขอเพิ่มทรัพย์สินของฉัน — Data Entry เท่านั้น ──
+        if ($roleID === 1 && isset($conn)) {
+            $myUID = getEffectiveUserID();
+            $resMyAR = sqlsrv_query($conn, "SELECT COUNT(*) AS C FROM CFP_AssetRequest WHERE RequestedBy = ? AND Status = 0", array($myUID));
+            $myARCount = 0;
+            if ($resMyAR) { $rMyAR = sqlsrv_fetch_array($resMyAR, SQLSRV_FETCH_ASSOC); $myARCount = $rMyAR ? (int)$rMyAR['C'] : 0; }
+            $items = cfpNavLink('/carbonfootprint/data_entry/my_asset_requests.php','box-seam','คำขอเพิ่มทรัพย์สินของฉัน','my_asset_requests',$currentPage,'entry');
+            echo cfpCollapsibleSection('คำขอเพิ่มทรัพย์สิน', 'box-seam', $myARCount > 0 ? (string)$myARCount : '0', 'assetreq-badge', $items, $defaultOpen);
         }
 
         // ── 2. ตรวจสอบ / อนุมัติ ─────────────────────────
-        if (in_array($roleID, array(2, 3, 4))) {
+        if (in_array($roleID, array(2, 3, 4, 5))) {
             $items  = cfpNavLink('/carbonfootprint/workflow/review.php','clipboard-check','รออนุมัติ','review',$currentPage,'review');
             $items .= cfpNavLink('/carbonfootprint/workflow/approved.php','check2-all','อนุมัติแล้ว','approved',$currentPage,'review');
-            echo cfpCollapsibleSection('ตรวจสอบ / อนุมัติ', 'check-circle', 'WF', 'review-badge', $items, true);
+            if (in_array($roleID, array(3, 4, 5))) {
+                $items .= cfpNavLink('/carbonfootprint/workflow/month_close.php','lock','ปิดเดือน','month_close',$currentPage,'review');
+            }
+            echo cfpCollapsibleSection('ตรวจสอบ / อนุมัติ', 'check-circle', 'WF', 'review-badge', $items, $defaultOpen);
         }
 
-        // ── 3. ทะเบียนทรัพย์สิน Scope 1 ──────────────────
-        if ($roleID === 4) {
+        // ── 3. ทะเบียนทรัพย์สิน Scope 1 — Admin + SustainAdmin ──
+        if (in_array($roleID, array(4, 5))) {
             $items  = cfpNavLink('/carbonfootprint/master/equipment.php','gear-wide-connected','เครื่องจักร','equipment',$currentPage,'scope1');
             $items .= cfpNavLink('/carbonfootprint/master/vehicle.php','truck','ยานพาหนะ','vehicle',$currentPage,'scope1');
             $items .= cfpNavLink('/carbonfootprint/master/refrigerant.php','thermometer-snow','อุปกรณ์ทำความเย็น','refrigerant',$currentPage,'scope1');
             $items .= cfpNavLink('/carbonfootprint/master/watermeter.php','droplet-half','มิเตอร์น้ำ','watermeter',$currentPage,'scope1');
-            echo cfpCollapsibleSection('ทะเบียนทรัพย์สิน (Scope 1)', 'fire', 'S1', 'scope1-badge', $items, true);
+            echo cfpCollapsibleSection('ทะเบียนทรัพย์สิน (Scope 1)', 'fire', 'S1', 'scope1-badge', $items, $defaultOpen);
         }
 
-        // ── 4. ทะเบียนทรัพย์สิน Scope 2 ──────────────────
-        if ($roleID === 4) {
+        // ── 4. ทะเบียนทรัพย์สิน Scope 2 — Admin + SustainAdmin ──
+        if (in_array($roleID, array(4, 5))) {
             $items = cfpNavLink('/carbonfootprint/master/electricmeter.php','lightning-charge','มิเตอร์ไฟฟ้า','electricmeter',$currentPage,'scope2');
-            echo cfpCollapsibleSection('ทะเบียนทรัพย์สิน (Scope 2)', 'lightning-charge', 'S2', 'scope2-badge', $items, true);
+            echo cfpCollapsibleSection('ทะเบียนทรัพย์สิน (Scope 2)', 'lightning-charge', 'S2', 'scope2-badge', $items, $defaultOpen);
         }
 
-        // ── 5. ทะเบียนทรัพย์สิน Scope 3 ──────────────────
-        if ($roleID === 4) {
-            $items  = cfpNavLink('/carbonfootprint/master/vendor.php','tree','ทะเบียนชาวสวน','vendor',$currentPage,'scope3');
+        // ── 5. ทะเบียนทรัพย์สิน Scope 3 — Admin + SustainAdmin ──
+        if (in_array($roleID, array(4, 5))) {
+            $items = cfpNavLink('/carbonfootprint/master/vendor.php','tree','ทะเบียนชาวสวน','vendor',$currentPage,'scope3');
             $items .= cfpNavLink('/carbonfootprint/master/waste.php','trash3','รายการขยะ / ของเสีย','waste',$currentPage,'scope3');
             $items .= cfpNavLink('/carbonfootprint/master/employee.php','person-walking','ทะเบียนพนักงาน (การเดินทาง)','employee',$currentPage,'scope3');
-            echo cfpCollapsibleSection('ทะเบียนทรัพย์สิน (Scope 3)', 'globe-asia-australia', 'S3', 'scope3-badge', $items, true);
+            echo cfpCollapsibleSection('ทะเบียนทรัพย์สิน (Scope 3)', 'globe-asia-australia', 'S3', 'scope3-badge', $items, $defaultOpen);
         }
 
+        
+        // ── 7b. คำขอเพิ่มทรัพย์สินใหม่ — Admin และ Sustainability Admin (คนสร้างทะเบียนจริง) ──
+        if (in_array($roleID, array(4, 5)) && isset($conn)) {
+            $resAR = sqlsrv_query($conn, "SELECT COUNT(*) AS C FROM CFP_AssetRequest WHERE Status = 0");
+            $arCount = 0;
+            if ($resAR) { $rAR = sqlsrv_fetch_array($resAR, SQLSRV_FETCH_ASSOC); $arCount = $rAR ? (int)$rAR['C'] : 0; }
+            $items = cfpNavLink('/carbonfootprint/master/asset_requests.php','box-seam','คำขอเพิ่มทรัพย์สิน','asset_requests',$currentPage,'admin');
+            echo cfpCollapsibleSection('คำขอเพิ่มทรัพย์สิน', 'box-seam', $arCount > 0 ? (string)$arCount : '0', 'assetreq-badge', $items, $defaultOpen);
+        }
+        
         // ── 6. การตั้งค่าข้อมูลพื้นฐาน ───────────────────
         if (in_array($roleID, array(4, 5))) {
 
@@ -179,23 +237,31 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
             $items .= cfpNavLink('/carbonfootprint/master/wastetype.php','bag-x','ประเภทขยะ','wastetype',$currentPage,'settings');
             $items .= cfpNavLink('/carbonfootprint/master/wastedisposalsite.php','geo-alt','สถานที่กำจัดขยะ','wastedisposalsite',$currentPage,'settings',true);
             $items .= cfpNavLink('/carbonfootprint/master/wastedisposalmethod.php','arrow-repeat','วิธีกำจัดขยะ','wastedisposalmethod',$currentPage,'settings');
-            echo cfpCollapsibleSection('การตั้งค่าข้อมูลพื้นฐาน', 'gear', 'SET', 'settings-badge', $items, true);
+            $items .= cfpNavLink('/carbonfootprint/master/scope3category.php','list-check','Category Scope 3','scope3category',$currentPage,'settings');
+            echo cfpCollapsibleSection('การตั้งค่าข้อมูลพื้นฐาน', 'gear', 'SET', 'settings-badge', $items, $defaultOpen);
         }
 
         // ── 7. จัดการ ──────────────────────────────────────
         if (in_array($roleID, array(4, 5))) {
             $items = cfpNavLink('/carbonfootprint/master/users.php','people','ผู้ใช้งาน/สิทธิ์','users',$currentPage,'admin');
-            $items .= cfpNavLink('/carbonfootprint/master/activityitem.php','list-check','รายการกิจกรรม','activityitem',$currentPage,'settings');   
-            echo cfpCollapsibleSection('จัดการสิทธิ์/รายการกิจกรรม', 'people-fill', 'AD', 'admin-badge', $items, true);
+            $items .= cfpNavLink('/carbonfootprint/master/activityitem.php','list-check','รายการกิจกรรม','activityitem',$currentPage,'settings');
+            echo cfpCollapsibleSection('จัดการสิทธิ์/รายการกิจกรรม', 'people-fill', 'AD', 'admin-light-badge', $items, $defaultOpen);
         }
 
+
         // ── 8. ข้อมูลอ้างอิง ───────────────────────────────
-        if ($roleID === 4) {
-            $items  = cfpNavLink('/carbonfootprint/master/unit.php','rulers','หน่วยวัด','unit',$currentPage,'reference');
-            $items .= cfpNavLink('/carbonfootprint/master/ef_source.php','journal-bookmark','แหล่งอ้างอิง EF','ef_source',$currentPage,'reference');
+        // unit/org = Admin เท่านั้น (โครงสร้างระบบ) / ef_link+ef_value = Admin+SustainAdmin (มาตรฐานคำนวณคาร์บอน)
+        if (in_array($roleID, array(4, 5))) {
+            $items = '';
+            if ($roleID === 4) {
+                $items .= cfpNavLink('/carbonfootprint/master/unit.php','rulers','หน่วยวัด','unit',$currentPage,'reference');
+            }
+            $items .= cfpNavLink('/carbonfootprint/master/ef_link.php','journal-bookmark','แหล่งอ้างอิง EF','ef_link',$currentPage,'reference');
             $items .= cfpNavLink('/carbonfootprint/master/ef_value.php','database','ค่า EF','ef_value',$currentPage,'reference');
-            $items .= cfpNavLink('/carbonfootprint/master/org.php','diagram-3','โครงสร้างองค์กร','org',$currentPage,'reference');
-            echo cfpCollapsibleSection('ข้อมูลอ้างอิง', 'book', 'REF', 'reference-badge', $items, true);
+            if ($roleID === 4) {
+                $items .= cfpNavLink('/carbonfootprint/master/org.php','diagram-3','โครงสร้างองค์กร','org',$currentPage,'reference');
+            }
+            echo cfpCollapsibleSection('ข้อมูลอ้างอิง', 'book', 'REF', 'reference-badge', $items, $defaultOpen);
         }
 
         // ── 9. ข้อมูลรายงาน ────────────────────────────────
@@ -204,7 +270,7 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
             $items .= cfpNavLink('/carbonfootprint/report/scope1.php','fire','รายงาน Scope 1','report_s1',$currentPage,'report');
             $items .= cfpNavLink('/carbonfootprint/report/scope2.php','lightning-charge','รายงาน Scope 2','report_s2',$currentPage,'report');
             $items .= cfpNavLink('/carbonfootprint/report/scope3.php','globe-asia-australia','รายงาน Scope 3','report_s3',$currentPage,'report');
-            echo cfpCollapsibleSection('ข้อมูลรายงาน', 'bar-chart-fill', 'RPT', 'report-badge', $items, true);
+            echo cfpCollapsibleSection('ข้อมูลรายงาน', 'bar-chart-fill', 'RPT', 'report-badge', $items, $defaultOpen);
         }
         ?>
 
@@ -236,7 +302,8 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
      ============================================================ -->
 <script>
 (function () {
-    var STATE_KEY = 'cfp_sidebar_menu_state';
+    /* แยก state ตาม role กันไม่ให้ผลของ role นึงมาทับ default ของอีก role (เช่น Admin ต้องย่อ แต่ role อื่นขยาย) */
+    var STATE_KEY = 'cfp_sidebar_menu_state_role<?php echo (int)$roleID; ?>';
 
     /* ── 1. Restore menu state จาก localStorage ── */
     var allSections = document.querySelectorAll('.nav-section-collapsible');

@@ -5,10 +5,12 @@ require_once '../config/db.php';
 requireRole(array(1,4,5));
 header('Content-Type: application/json; charset=utf-8');
 $conn=getConnection();$userID=(int)$_SESSION['user_id'];
-$isSuperAdmin=isSuperAdmin();
-$canEdit=($isSuperAdmin||getEffectiveRole()===1);
+$isSuperAdmin=isSuperAdmin() && !isViewingAs();
+/* Admin/SustainAdmin เข้าตรงๆ (ไม่ผ่าน Elevate เป็น Data Entry) = read-only เช่นกัน */
+$canEdit=(getEffectiveRole()===1) && !isViewingAs();
 
 function jsonOut($s,$m,$e=array()){echo json_encode(array_merge(array('success'=>$s,'msg'=>$m),$e),JSON_UNESCAPED_UNICODE);exit;}
+if(isViewingAs()){jsonOut(false,'อยู่ในโหมด View-as (Read-only) — บันทึกข้อมูลไม่ได้');}
 if(!$canEdit){jsonOut(false,'ไม่มีสิทธิ์บันทึกข้อมูล');}
 
 $raw=file_get_contents('php://input');
@@ -29,6 +31,17 @@ if(!in_array($action,array('draft','submit','cancel_draft'))){jsonOut(false,'Act
 if($action==='cancel_draft'){
     if($siteID<=0){jsonOut(false,'ไม่พบ Site');}
     if(empty($yearMonth)||!preg_match('/^\d{6}$/',$yearMonth)){jsonOut(false,'YearMonth ไม่ถูกต้อง');}
+    if(!$isSuperAdmin&&getEffectiveRole()===1){
+        $resAccCd=sqlsrv_query($conn,"SELECT SiteID FROM CFP_UserScopeAccess WHERE UserID=? AND ScopeNo=1 AND IsActive=1",array($userID));
+        $allowedSitesCd=array();
+        if($resAccCd){
+            while($rCd=sqlsrv_fetch_array($resAccCd,SQLSRV_FETCH_ASSOC)){
+                /* SiteID ว่าง = แถวนี้ไม่จำกัด site (เข้าได้ทุก site) เจอแบบนี้แถวเดียวพอ */
+                if($rCd['SiteID']){$allowedSitesCd[]=(int)$rCd['SiteID'];}else{$allowedSitesCd=null;break;}
+            }
+        }
+        if($allowedSitesCd!==null&&!in_array($siteID,$allowedSitesCd)){jsonOut(false,'ไม่มีสิทธิ์ยกเลิก Draft ของ Site นี้');}
+    }
     $resHdr=sqlsrv_query($conn,
         "SELECT HeaderID,Status FROM CFP_MonthlyHeader WHERE SiteID=? AND YearMonth=? AND Scope='Scope1'",
         array($siteID,$yearMonth));
@@ -40,6 +53,8 @@ if($action==='cancel_draft'){
         "UPDATE CFP_ActivityData SET IsActive=0,UpdatedBy=?,UpdatedDate=GETDATE() WHERE HeaderID=? AND IsActive=1",
         array($userID,$headerID));
     if($r1===false){$e=sqlsrv_errors();jsonOut(false,'ยกเลิก Draft ไม่สำเร็จ: '.($e[0]['message']??''));}
+    /* ลบ Header ทิ้งด้วย เพราะข้อมูลข้างในถูกเคลียร์หมดแล้ว ไม่ปล่อยให้ Header ว่างค้างเป็นขยะ */
+    sqlsrv_query($conn,"DELETE FROM CFP_MonthlyHeader WHERE HeaderID=?",array($headerID));
     logAction($conn,'DATA_DELETE','CFP_MonthlyHeader',$headerID,$siteID,$yearMonth,'Scope1','ยกเลิก Draft ทั้งหมด');
     jsonOut(true,'ยกเลิก Draft เรียบร้อยแล้ว');
 }

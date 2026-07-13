@@ -27,6 +27,11 @@ $userID = (int)$_SESSION['user_id'];
    START ELEVATION
    ============================================================ */
 if ($action === 'start') {
+    if (!empty($_SESSION['view_as_user_id'])) {
+        echo json_encode(array('success' => false, 'msg' => 'กำลัง View-as user อยู่ กรุณาสิ้นสุดก่อน'));
+        exit;
+    }
+
     $elevRole = (int)($input['elevated_role'] ?? 0);
     $reason   = isset($input['reason']) ? trim($input['reason']) : '';
 

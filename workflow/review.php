@@ -4,9 +4,9 @@ require_once '../includes/auth_check.php';
 require_once '../config/db.php';
 requireRole(array(2, 3, 4, 5));
 $conn   = getConnection();
-$userID = (int)$_SESSION['user_id'];
+$userID = getEffectiveUserID();
 $roleID = getEffectiveRole();
-$isSuperAdmin = isSuperAdmin();
+$isSuperAdmin = isSuperAdmin() && !isViewingAs();
 
 $toastMsg = ''; $toastType = 'success';
 if (!empty($_SESSION['toast_msg'])) {
@@ -54,12 +54,14 @@ if ($roleID === 2) {
 $sqlPending = "
     SELECT h.HeaderID, h.Scope, h.YearMonth, h.SiteID, h.Status,
            h.SubmittedBy, h.SubmittedDate,
+           h.ReviewedBy, ur.FullName AS ReviewerName,
            s.SiteName, us.FullName AS SubmitterName,
            COUNT(a.ActivityID) AS ItemCount,
            SUM(a.CO2e) AS TotalCO2e
     FROM CFP_MonthlyHeader h
     LEFT JOIN CFP_Site s ON s.SiteID = h.SiteID
     LEFT JOIN CFP_User us ON us.UserID = h.SubmittedBy
+    LEFT JOIN CFP_User ur ON ur.UserID = h.ReviewedBy
     LEFT JOIN CFP_ActivityData a ON a.HeaderID = h.HeaderID AND a.IsActive = 1
     WHERE h.Status = 1
     AND YEAR(h.SubmittedDate) = ? AND MONTH(h.SubmittedDate) = ?
@@ -73,7 +75,7 @@ if ($allowedSiteIDs !== null && !empty($allowedSiteIDs)) {
 }
 if ($filterScope !== '') { $sqlPending .= " AND h.Scope = ?"; $paramsPending[] = 'Scope'.(int)$filterScope; }
 if ($filterSite  !== '') { $sqlPending .= " AND h.SiteID = ?";  $paramsPending[] = (int)$filterSite; }
-$sqlPending .= " GROUP BY h.HeaderID, h.Scope, h.YearMonth, h.SiteID, h.Status, h.SubmittedBy, h.SubmittedDate, s.SiteName, us.FullName ORDER BY h.SubmittedDate DESC";
+$sqlPending .= " GROUP BY h.HeaderID, h.Scope, h.YearMonth, h.SiteID, h.Status, h.SubmittedBy, h.SubmittedDate, h.ReviewedBy, ur.FullName, s.SiteName, us.FullName ORDER BY h.SubmittedDate DESC";
 
 $resPending = @sqlsrv_query($conn, $sqlPending, $paramsPending);
 $pendingRows = array();
@@ -199,7 +201,9 @@ function logRoleShort($role) {
     return $map[$role] ?? '';
 }
 
-$canApprove = in_array($roleID, array(3, 4, 5));
+$canApprove      = in_array($roleID, array(3, 4, 5)) && !isViewingAs();  /* View-as = read-only เสมอ */
+$canReject       = in_array($roleID, array(2, 3, 4, 5)) && !isViewingAs();
+$canMarkReviewed = ($roleID === 2) && !isViewingAs();
 $pageTitle  = 'รออนุมัติ';
 $pageIcon   = 'clipboard-check';
 ?>
@@ -411,6 +415,9 @@ body { font-family: 'Prompt', sans-serif; }
           <span><i class="bi bi-person me-1"></i><?php echo htmlspecialchars($r['SubmitterName']); ?></span>
           <?php } ?>
           <span><i class="bi bi-calendar3 me-1"></i><?php echo $submittedDate; ?></span>
+          <?php if (!empty($r['ReviewedBy'])) { ?>
+          <span style="color:#2E7D32;"><i class="bi bi-eye-check me-1"></i>ตรวจแล้วโดย <?php echo htmlspecialchars($r['ReviewerName']); ?></span>
+          <?php } ?>
         </div>
       </div>
       <div class="pending-actions">
@@ -418,8 +425,15 @@ body { font-family: 'Prompt', sans-serif; }
         <button class="btn-approve" onclick="confirmApprove(<?php echo (int)$r['HeaderID']; ?>, '<?php echo htmlspecialchars(addslashes($hLabel)); ?>')">
           <i class="bi bi-check2 me-1"></i>อนุมัติ
         </button>
+        <?php } ?>
+        <?php if ($canReject) { ?>
         <button class="btn-reject" onclick="openRejectModal(<?php echo (int)$r['HeaderID']; ?>, '<?php echo htmlspecialchars(addslashes($hLabel)); ?>')">
           <i class="bi bi-x"></i>
+        </button>
+        <?php } ?>
+        <?php if ($canMarkReviewed && empty($r['ReviewedBy'])) { ?>
+        <button class="btn-view" style="color:#2E7D32;border-color:#A0DCC8;" onclick="submitAction('mark_reviewed', <?php echo (int)$r['HeaderID']; ?>, '')">
+          <i class="bi bi-eye-check me-1"></i>ตรวจแล้ว
         </button>
         <?php } ?>
         <button class="btn-view" onclick="openDetailModal(<?php echo (int)$r['HeaderID']; ?>)">
@@ -628,6 +642,7 @@ body { font-family: 'Prompt', sans-serif; }
 var currentRejectID = 0;
 var csrfToken = <?php echo json_encode($_SESSION['csrf_token'] ?? '', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var canApprove = <?php echo $canApprove ? 'true' : 'false'; ?>;
+var canReject = <?php echo $canReject ? 'true' : 'false'; ?>;
 var isSuperAdmin = <?php echo $isSuperAdmin ? 'true' : 'false'; ?>;
 
 function confirmApprove(headerID, label) {
@@ -648,7 +663,7 @@ function confirmApprove(headerID, label) {
 }
 
 function openRejectModal(headerID, label) {
-    if (!canApprove) { return; }
+    if (!canReject) { return; }
     currentRejectID = headerID;
     document.getElementById('rejectItemName').textContent = label;
     document.getElementById('rejectReason').value = '';
@@ -675,7 +690,8 @@ function submitAction(action, dataID, reason) {
     .then(function(r) { return r.json(); })
     .then(function(res) {
         if (res.success) {
-            Swal.fire({ icon: 'success', title: action === 'approve' ? 'อนุมัติเรียบร้อย!' : 'ปฏิเสธเรียบร้อย!',
+            var titleMap = { approve: 'อนุมัติเรียบร้อย!', reject: 'ปฏิเสธเรียบร้อย!', mark_reviewed: 'บันทึกตรวจแล้ว!', unlock: 'Unlock เรียบร้อย!' };
+            Swal.fire({ icon: 'success', title: titleMap[action] || res.msg,
                 timer: 2000, timerProgressBar: true, showConfirmButton: false, customClass: { popup: 'font-prompt' } })
             .then(function() { location.reload(); });
         } else {

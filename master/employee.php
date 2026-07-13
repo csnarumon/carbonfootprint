@@ -1132,9 +1132,39 @@ function openModal(id) {
 }
 
 // ============================================================
+// Pre-fill จากคำขอเพิ่มทรัพย์สิน (master/asset_requests.php ส่ง query string มา)
+// หมายเหตุ: แผนก (Company/Division/Dept) เป็น cascade select ที่ต้องเลือกเองโดย Admin
+// เพราะคำขอจาก Data Entry เก็บแค่ชื่อแผนกแบบข้อความอิสระ ไม่ใช่ ID จริง
+// ============================================================
+function cfpApplyPrefillFromRequest() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('prefill') !== '1') { return; }
+
+    openModal(0);
+
+    var name = params.get('name');
+    var site = params.get('site');
+    var commuteType = params.get('commutetype');
+    var workDays = params.get('workdays');
+    var commuteDist = params.get('commutedist');
+    var phone = params.get('phone');
+    var remark = params.get('remark');
+
+    if (name) { document.getElementById('fName').value = name; }
+    if (site) { document.getElementById('fSite').value = site; }
+    if (commuteType) { document.getElementById('fCommuteType').value = commuteType; }
+    if (workDays) { document.getElementById('fWorkDays').value = workDays; }
+    if (commuteDist) { document.getElementById('fDist').value = commuteDist; }
+    if (phone) { document.getElementById('fPhone').value = phone; }
+    if (remark) { document.getElementById('fRemark').value = remark; }
+}
+
+// ============================================================
 // DOMContentLoaded
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
+
+    cfpApplyPrefillFromRequest();
 
     function calcDist() {
         var dist = parseFloat($('#fDist').val()) || 0;

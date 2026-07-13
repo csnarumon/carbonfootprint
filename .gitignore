@@ -17,3 +17,10 @@ Thumbs.db
 *.sql
 dbCarbonFootprint_v9
 dbCarbonFootprint_v12
+dbCarbonFootprint_bak_withdata
+
+# Reference PDFs (ไม่ต้อง track)
+EF_CFO.pdf
+EF_TGO.pdf
+Emission Factor_2569.pdf
+Emission Factor CFO*.pdf

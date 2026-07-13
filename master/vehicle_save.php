@@ -6,7 +6,7 @@
    ============================================== */
 require_once '../includes/auth_check.php';
 require_once '../config/db.php';
-requireRole(array(4));
+requireRole(array(4, 5));
 
 header('Content-Type: application/json; charset=utf-8');
 

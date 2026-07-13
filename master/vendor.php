@@ -5,7 +5,7 @@
 */
 require_once '../includes/auth_check.php';
 require_once '../config/db.php';
-requireRole(array(4));
+requireRole(array(4, 5));
 $conn     = getConnection();
 $userID   = (int)$_SESSION['user_id'];
 $toastMsg = ''; $toastType = 'success';
@@ -876,9 +876,43 @@ function openModal(id) {
 }
 
 // ============================================================
+// Pre-fill จากคำขอเพิ่มทรัพย์สิน (master/asset_requests.php ส่ง query string มา)
+// ============================================================
+function cfpApplyPrefillFromRequest() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('prefill') !== '1') { return; }
+
+    openModal(0);
+
+    var name = params.get('name');
+    var vendorType = params.get('vendortype');
+    var taxID = params.get('taxid');
+    var productType = params.get('producttype');
+    var transportDist = params.get('transportdist');
+    var contactName = params.get('contactname');
+    var phone = params.get('phone');
+    var address = params.get('address');
+    var province = params.get('province');
+    var remark = params.get('remark');
+
+    if (name) { document.getElementById('fName').value = name; }
+    if (vendorType) { document.getElementById('fVendorType').value = vendorType; }
+    if (taxID) { document.getElementById('fTaxID').value = taxID; }
+    if (productType) { document.getElementById('fProductType').value = productType; }
+    if (transportDist) { document.getElementById('fTransportDist').value = transportDist; }
+    if (contactName) { document.getElementById('fContact').value = contactName; }
+    if (phone) { document.getElementById('fPhone').value = phone; }
+    if (address) { document.getElementById('fAddress').value = address; }
+    if (province) { document.getElementById('fProvince').value = province; }
+    if (remark) { document.getElementById('fRemark').value = remark; }
+}
+
+// ============================================================
 // DOMContentLoaded
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
+
+    cfpApplyPrefillFromRequest();
 
     document.getElementById('btnSave').addEventListener('click', function() {
         var btn = this;

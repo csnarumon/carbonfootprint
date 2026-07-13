@@ -4,7 +4,7 @@
 */
 require_once '../includes/auth_check.php';
 require_once '../config/db.php';
-requireRole(array(4));
+requireRole(array(4, 5));
 $conn = getConnection();
 $myUserID = (int)$_SESSION['user_id'];
 
@@ -791,9 +791,45 @@ function openModal(id) {
 }
 
 // ============================================================
+// Pre-fill จากคำขอเพิ่มทรัพย์สิน (master/asset_requests.php ส่ง query string มา)
+// ============================================================
+function cfpSelectByText(selectEl, text) {
+    if (!selectEl || !text) { return; }
+    text = text.trim();
+    for (var i = 0; i < selectEl.options.length; i++) {
+        if (selectEl.options[i].text.indexOf(text) !== -1) { selectEl.selectedIndex = i; return; }
+    }
+}
+
+function cfpApplyPrefillFromRequest() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('prefill') !== '1') { return; }
+
+    openModal(0);
+
+    var name = params.get('name');
+    var site = params.get('site');
+    var reftype = params.get('refrigerianttype') || params.get('refrigeranttype');
+    var cap = params.get('capacity');
+    var powerkw = params.get('powerkw');
+    var chargekg = params.get('chargekg');
+    var remark = params.get('remark');
+
+    if (name) { document.getElementById('fName').value = name; }
+    if (site) { document.getElementById('fSite').value = site; }
+    if (reftype) { cfpSelectByText(document.getElementById('fRefType'), reftype); }
+    if (cap) { document.getElementById('fCap').value = cap; }
+    if (powerkw) { document.getElementById('fPowerKW').value = powerkw; }
+    if (chargekg) { document.getElementById('fCharge').value = chargekg; }
+    if (remark) { document.getElementById('fRemark').value = remark; }
+}
+
+// ============================================================
 // DOMContentLoaded
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
+
+    cfpApplyPrefillFromRequest();
 
     document.getElementById('btnSave').addEventListener('click', function() {
         var btn = this;

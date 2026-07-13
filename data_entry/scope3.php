@@ -11,11 +11,27 @@ require_once '../config/db.php';
 requireRole(array(1, 2, 3, 4, 5, 6));
 
 $conn      = getConnection();
-$userID    = (int)$_SESSION['user_id'];
+/* ── ใช้ Effective UserID เสมอ — ถ้า Admin กำลัง View-as จะเห็น/กรองข้อมูลตรงกับ user ที่สวมอยู่จริง ── */
+$userID    = getEffectiveUserID();
+
+/* ── Auto-fill ผู้รับผิดชอบข้อมูล — FullName เอาจาก session ตรงๆ (ไม่ query ซ้ำ) ── */
+$myFullName = isViewingAs() ? ($_SESSION['view_as_name'] ?? '') : ($_SESSION['fullname'] ?? '');
+$myDivID    = 0;
+
+/* ลองหา DivisionID ของ user จากโครงสร้างใหม่ก่อน */
+$resMe = sqlsrv_query($conn, "SELECT DivisionID FROM CFP_User WHERE UserID=?", array($userID));
+if ($resMe) {
+    $rMe = sqlsrv_fetch_array($resMe, SQLSRV_FETCH_ASSOC);
+    if ($rMe && !empty($rMe['DivisionID'])) { $myDivID = (int)$rMe['DivisionID']; }
+}
+$myDeptID = $myDivID;
 $roleID    = getActualRole();
 $effRole   = getEffectiveRole();
-$isSuperAdmin = isSuperAdmin();          /* role 4 หรือ 5 */
-$canEdit   = ($isSuperAdmin || $effRole === 1);
+/* View-as ต้อง bypass ไม่ได้ — บังคับดูตามสิทธิ์จริงของ user ที่สวมอยู่เสมอ (ไม่ใช่สิทธิ์ Admin ตัวจริง) */
+$isSuperAdmin = isSuperAdmin() && !isViewingAs();
+/* Admin/SustainAdmin เข้าตรงๆ (ไม่ผ่าน Elevate เป็น Data Entry) = ดูได้อย่างเดียว
+   ให้กรอกข้อมูลจริงต้อง Elevate Role เป็น Data Entry หรือ View-as เท่านั้น */
+$canEdit   = ($effRole === 1) && !isViewingAs();
 
 /* ===== filter เดือน/ปี + Site ===== */
 $filterYM   = $_GET['ym']     ?? date('Ym');
@@ -24,12 +40,7 @@ $filterYear  = (int)substr($filterYM, 0, 4);
 $filterMonth = (int)substr($filterYM, 4, 2);
 $ymLabel     = $filterYear . '-' . str_pad($filterMonth, 2, '0', STR_PAD_LEFT);
 
-/* ===== ดึง Site dropdown ===== */
-$resSite = sqlsrv_query($conn, "SELECT SiteID,SiteName FROM CFP_Site WHERE IsActive=1 ORDER BY CASE WHEN SiteName LIKE N'%สำนักงานใหญ่%' THEN 0 ELSE 1 END, SiteName");
-$sites   = array(); while ($r = sqlsrv_fetch_array($resSite, SQLSRV_FETCH_ASSOC)) { $sites[] = $r; }
-if (!$filterSite && !empty($sites)) { $filterSite = (int)$sites[0]['SiteID']; }
-
-/* ===== ดึงสิทธิ์ Data Entry (Scope) ===== */
+/* ===== ดึงสิทธิ์ Data Entry (Scope) — ต้องทำก่อนดึง Site dropdown เพื่อกรอง Site ที่ไม่มีสิทธิ์ออก ===== */
 $allowedCats  = null; /* null = ทุก category */
 $allowedSites = null; /* null = ทุก Site */
 if (!$isSuperAdmin && $effRole === 1) {
@@ -51,6 +62,40 @@ if (!$isSuperAdmin && $effRole === 1) {
         }
     }
 }
+
+/* ===== ดึง Site dropdown — กรองตาม $allowedSites ถ้ามีสิทธิ์จำกัด ===== */
+$sqlSite = "SELECT SiteID,SiteName FROM CFP_Site WHERE IsActive=1";
+$paramSite = array();
+if ($allowedSites !== null) {
+    if (empty($allowedSites)) {
+        $sqlSite .= " AND 1=0";
+    } else {
+        $ph = implode(',', array_fill(0, count($allowedSites), '?'));
+        $sqlSite .= " AND SiteID IN ($ph)";
+        $paramSite = $allowedSites;
+    }
+}
+$sqlSite .= " ORDER BY CASE WHEN SiteName LIKE N'%สำนักงานใหญ่%' THEN 0 ELSE 1 END, SiteName";
+$resSite = sqlsrv_query($conn, $sqlSite, $paramSite);
+$sites   = array(); while ($r = sqlsrv_fetch_array($resSite, SQLSRV_FETCH_ASSOC)) { $sites[] = $r; }
+if ($allowedSites !== null && $filterSite && !in_array($filterSite, $allowedSites)) { $filterSite = 0; }
+if (!$filterSite && !empty($sites)) { $filterSite = (int)$sites[0]['SiteID']; }
+
+/* ดึงฝ่าย/หน่วยงานทั้งหมด (HQ+Factory) มาพร้อมกัน ไม่กรองตาม Site — เผื่อกรณีคนอื่นคีย์แทน */
+$deptListHQ = array();
+$deptListFactory = array();
+$resDeptHQ = sqlsrv_query($conn,
+    "SELECT DivisionID AS DeptID, DivisionName AS DeptName FROM CFP_Division
+     WHERE IsActive=1 AND DivisionType='HQ' ORDER BY SortOrder, DivisionName");
+if ($resDeptHQ) { while ($rD = sqlsrv_fetch_array($resDeptHQ, SQLSRV_FETCH_ASSOC)) { $deptListHQ[] = $rD; } }
+$resDeptFa = sqlsrv_query($conn,
+    "SELECT sc.SectionID AS DeptID, sc.SectionName AS DeptName
+     FROM CFP_Section sc
+     JOIN CFP_Department dp ON dp.DeptID = sc.DeptID
+     JOIN CFP_Division dv ON dv.DivisionID = dp.DivisionID
+     WHERE sc.IsActive=1 AND dv.DivisionType='Factory' AND dv.SiteID=?
+     ORDER BY sc.SectionName", array($filterSite));
+if ($resDeptFa) { while ($rD = sqlsrv_fetch_array($resDeptFa, SQLSRV_FETCH_ASSOC)) { $deptListFactory[] = $rD; } }
 
 /* ===== ดึง ActivityItem Scope 1 ===== */
 /* กรอง Item ตาม: ScopeNo + Site (CFP_ActivityItemSite) + สิทธิ์ Category */
@@ -142,9 +187,9 @@ if ($resAssetEm) {
 
 /* ลิงก์ไปหน้าทะเบียนทรัพย์สิน ใช้ตอนแสดง empty-state (ยังไม่มีทรัพย์สินให้เลือก) */
 $assetPageMap = array(
-    4 => array('url' => '/carbonfootprint/master/vendor.php',   'label' => 'ทะเบียนชาวสวน/ผู้ขนส่ง'),
-    5 => array('url' => '/carbonfootprint/master/waste.php',    'label' => 'ทะเบียนของเสีย'),
-    7 => array('url' => '/carbonfootprint/master/employee.php', 'label' => 'ทะเบียนพนักงาน'),
+    4 => array('url' => '/carbonfootprint/master/vendor.php',   'label' => 'ทะเบียนชาวสวน/ผู้ขนส่ง', 'type' => 'Vendor',   'typeLabel' => 'ชาวสวน/ผู้ขนส่ง'),
+    5 => array('url' => '/carbonfootprint/master/waste.php',    'label' => 'ทะเบียนของเสีย',        'type' => 'Waste',    'typeLabel' => 'รายการของเสีย'),
+    7 => array('url' => '/carbonfootprint/master/employee.php', 'label' => 'ทะเบียนพนักงาน',        'type' => 'Employee', 'typeLabel' => 'พนักงาน'),
 );
 
 $SCOPE_STR = 'Scope3'; /* ใช้ match CFP_MonthlyHeader.Scope */
@@ -159,13 +204,16 @@ $hdrStatus = -1;
         $ph      = implode(',', array_fill(0, count($itemIDs), '?'));
         /* ดึง HeaderID ของ Site+Month+Scope ก่อน */
         $resHdr = @sqlsrv_query($conn,
-            "SELECT HeaderID, Status FROM CFP_MonthlyHeader
+            "SELECT HeaderID, Status, ResponsibleName, ResponsibleDeptID FROM CFP_MonthlyHeader
              WHERE SiteID=? AND YearMonth=? AND Scope=?",
             array($filterSite, $filterYM, $SCOPE_STR));
         $hdrRow = $resHdr ? sqlsrv_fetch_array($resHdr, SQLSRV_FETCH_ASSOC) : null;
         if ($hdrRow) {
             $hdrID  = (int)$hdrRow['HeaderID'];
             $hdrStatus = (int)$hdrRow['Status']; /* 0=Draft 1=Submitted 2=Approved */
+            /* ถ้า Header นี้เคยบันทึกผู้รับผิดชอบไว้แล้ว ใช้ค่านั้นแทนค่า auto-fill จาก session ปัจจุบัน */
+            if (!empty($hdrRow['ResponsibleName'])) { $myFullName = $hdrRow['ResponsibleName']; }
+            if (!empty($hdrRow['ResponsibleDeptID'])) { $myDeptID = (int)$hdrRow['ResponsibleDeptID']; }
             $params = array_merge(array($hdrID), $itemIDs);
             $resData = @sqlsrv_query($conn,
                 "SELECT ActivityID AS DataID, ItemID, Quantity, Remark, EvidenceFile, AssetID, AssetType
@@ -255,6 +303,10 @@ body { font-family:'Prompt',sans-serif; }
 /* ── Filter bar ── */
 .filter-bar { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; padding:12px 16px; background:#fff; border:1px solid var(--cfp-border); border-radius:10px; margin-bottom:16px; }
 .filter-bar select { padding:5px 10px; border:1px solid var(--cfp-border); border-radius:6px; font-family:'Prompt',sans-serif; font-size:0.82rem; color:var(--cfp-text); background:#fff; }
+.filter-bar .input-group .input-group-text { background:#fff; border-color:var(--cfp-border); color:var(--cfp-text-muted); font-size:0.82rem; padding:4px 8px; }
+.filter-bar .input-group .form-control { border-color:var(--cfp-border); font-family:'Prompt',sans-serif; font-size:0.82rem; color:var(--cfp-text); padding:4px 8px; }
+.filter-bar .input-group .form-control:focus { border-color:var(--cfp-primary); box-shadow:0 0 0 3px rgba(42,171,184,0.12); }
+.filter-bar .input-group .form-control:disabled { background:var(--cfp-bg); color:var(--cfp-text-muted); }
 .filter-bar .fbar-r { margin-left:auto; display:flex; gap:6px; flex-wrap:wrap; }
 
 /* ── Progress bar ── */
@@ -264,8 +316,26 @@ body { font-family:'Prompt',sans-serif; }
 .prog-fill { background:var(--cfp-primary); height:100%; border-radius:4px; transition:width .4s ease; }
 
 /* ── Category tabs ── */
-.cat-tabs { display:flex; gap:0; border-bottom:1px solid var(--cfp-border); margin-bottom:0; overflow-x:auto; scrollbar-width:none; }
+.cat-tabs-wrap { position:relative; display:flex; align-items:stretch; border-bottom:1px solid var(--cfp-border); }
+.cat-tabs { display:flex; gap:0; margin-bottom:0; overflow-x:auto; scrollbar-width:none; scroll-behavior:smooth; flex:1; cursor:grab; user-select:none; }
+.cat-tabs.dragging { cursor:grabbing; scroll-behavior:auto; }
 .cat-tabs::-webkit-scrollbar { display:none; }
+.cat-scroll-btn { flex-shrink:0; width:28px; border:none; background:#fff; color:var(--cfp-text-mid); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:0.9rem; }
+.cat-scroll-btn:hover { background:var(--cfp-bg); color:var(--cfp-primary); }
+/* fade เงาบอกว่ายังเลื่อนได้อีก — โชว์/ซ่อนด้วย JS ตามตำแหน่ง scroll */
+.cat-fade { position:absolute; top:0; bottom:0; width:24px; pointer-events:none; z-index:2; opacity:0; transition:opacity .15s; }
+.cat-fade.show { opacity:1; }
+.cat-fade-left  { left:28px; background:linear-gradient(90deg, #fff, rgba(255,255,255,0)); }
+.cat-fade-right { right:28px; background:linear-gradient(270deg, #fff, rgba(255,255,255,0)); }
+.cat-fade-icon { display:none; position:absolute; top:50%; transform:translateY(-50%); font-size:0.65rem; color:var(--cfp-primary); background:#fff; border-radius:50%; width:16px; height:16px; align-items:center; justify-content:center; box-shadow:0 1px 4px rgba(42,171,184,0.4); }
+.cat-fade-left .cat-fade-icon  { left:2px; }
+.cat-fade-right .cat-fade-icon { right:2px; }
+@media (max-width:640px) {
+    .cat-scroll-btn { display:none; }
+    .cat-fade-left  { left:0; width:34px; }
+    .cat-fade-right { right:0; width:34px; }
+    .cat-fade-icon  { display:flex; }
+}
 .cat-tab { padding:9px 14px; font-size:0.8rem; color:var(--cfp-text-muted); cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; display:flex; align-items:center; gap:6px; flex-shrink:0; background:none; border-top:none; border-left:none; border-right:none; }
 .cat-tab.active { color:var(--cfp-primary); border-bottom-color:var(--cfp-primary); font-weight:500; }
 .cat-tab .tab-cnt { font-size:0.68rem; padding:1px 6px; border-radius:9px; font-weight:600; }
@@ -425,12 +495,45 @@ body { font-family:'Prompt',sans-serif; }
       } ?>
     </select>
   </div>
+  <div>
+    <div style="font-size:0.72rem;color:var(--cfp-text-muted);margin-bottom:3px;">ผู้รับผิดชอบข้อมูล</div>
+    <div class="input-group" style="min-width:190px;">
+      <span class="input-group-text"><i class="bi bi-person"></i></span>
+      <input type="text" id="responsibleName" class="form-control"
+             value="<?php echo htmlspecialchars($myFullName); ?>"
+             placeholder="ชื่อผู้รับผิดชอบ"
+             <?php echo $canEdit ? '' : 'disabled'; ?>>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:0.72rem;color:var(--cfp-text-muted);margin-bottom:3px;">ฝ่าย/หน่วยงาน</div>
+    <select id="responsibleDept" style="min-width:200px;" <?php echo $canEdit ? '' : 'disabled'; ?>>
+      <option value="">— ไม่ระบุ —</option>
+      <?php if (!empty($deptListHQ)) { ?>
+      <optgroup label="ฝ่าย (สำนักงานใหญ่)">
+        <?php foreach ($deptListHQ as $dp) {
+            $sel = ($dp['DeptID'] == $myDeptID) ? 'selected' : '';
+            echo "<option value=\"{$dp['DeptID']}\" $sel>" . htmlspecialchars($dp['DeptName']) . "</option>";
+        } ?>
+      </optgroup>
+      <?php } ?>
+      <?php if (!empty($deptListFactory)) { ?>
+      <optgroup label="หน่วยงาน (โรงงาน)">
+        <?php foreach ($deptListFactory as $dp) {
+            $sel = ($dp['DeptID'] == $myDeptID) ? 'selected' : '';
+            $displayName = preg_replace('/^ฝ่าย/u', '', $dp['DeptName']);
+            echo "<option value=\"{$dp['DeptID']}\" $sel>" . htmlspecialchars($displayName) . "</option>";
+        } ?>
+      </optgroup>
+      <?php } ?>
+    </select>
+  </div>
   <div class="align-self-end" style="font-size:0.78rem;color:var(--cfp-text-muted);">
     <span id="progressText"><?php echo $filledItems; ?> / <?php echo $totalItems; ?> รายการ</span>
   </div>
   <?php if ($canEdit) { ?>
   <div class="fbar-r">
-    <?php if ($hdrID > 0 && $hdrStatus === 0) { ?>
+    <?php if ($hdrID > 0 && $hdrStatus === 0 && $filledItems > 0) { ?>
     <button class="btn btn-sm btn-outline-danger font-prompt" onclick="confirmCancelDraft()" style="font-size:0.8rem;">
       <i class="bi bi-trash me-1"></i>ยกเลิก Draft
     </button>
@@ -457,33 +560,39 @@ body { font-family:'Prompt',sans-serif; }
 <?php if (empty($grouped)) { ?>
 <div class="cfp-card text-center py-5" style="color:var(--cfp-text-muted);">
   <i class="bi bi-inbox" style="font-size:2.5rem;display:block;margin-bottom:8px;opacity:.4;"></i>
-  ไม่มีรายการ Scope 1 ที่ได้รับสิทธิ์ในช่วงนี้
+  ไม่มีรายการ Scope 3 ที่ได้รับสิทธิ์ในช่วงนี้
 </div>
 <?php } else { ?>
 
 <!-- Category Tabs -->
 <div class="cfp-card" style="padding:0;">
-  <div class="cat-tabs" id="catTabs">
-    <?php
-    $firstCat = true;
-    foreach ($grouped as $catNo => $catItems) {
-        $catInfo  = $catLabels[$catNo] ?? array('label'=>'อื่นๆ','icon'=>'bi-circle','color'=>'#888','full'=>'ไม่ระบุ');
-        $catFilled = count(array_filter($catItems, function($i) use ($dataMap) {
-            $d = $dataMap[(int)$i['ItemID']] ?? null; return $d && $d['Quantity'] !== null;
-        }));
-        $isEmpty     = empty($catItems);
-        $activeClass = (!$isEmpty && $firstCat) ? 'active' : '';
-        $disabledCls = $isEmpty ? ' cat-tab-disabled' : '';
-    ?>
-    <button class="cat-tab <?php echo $activeClass; ?><?php echo $disabledCls; ?>"
-            onclick="<?php echo $isEmpty ? 'void(0)' : 'switchCat('.$catNo.')'; ?>"
-            id="catTab<?php echo $catNo; ?>"
-            <?php echo $isEmpty ? 'title="'.$catInfo['full'].' — ยังไม่มีรายการกิจกรรม"' : ''; ?>>
-      <i class="<?php echo $catInfo['icon']; ?>" style="font-size:0.85rem;color:<?php echo $catInfo['color']; ?>;"></i>
-      <?php echo htmlspecialchars($catInfo['label']); ?>
-      <span class="tab-cnt"><?php echo $catFilled; ?>/<?php echo count($catItems); ?></span>
-    </button>
-    <?php $firstCat = false; } ?>
+  <div class="cat-tabs-wrap">
+    <button type="button" class="cat-scroll-btn fade-left" onclick="scrollCatTabs(-160)"><i class="bi bi-chevron-left"></i></button>
+    <div class="cat-fade cat-fade-left" id="catFadeLeft"><span class="cat-fade-icon"><i class="bi bi-chevron-left"></i></span></div>
+    <div class="cat-fade cat-fade-right" id="catFadeRight"><span class="cat-fade-icon"><i class="bi bi-chevron-right"></i></span></div>
+    <div class="cat-tabs" id="catTabs">
+      <?php
+      $firstCat = true;
+      foreach ($grouped as $catNo => $catItems) {
+          $catInfo  = $catLabels[$catNo] ?? array('label'=>'อื่นๆ','icon'=>'bi-circle','color'=>'#888','full'=>'ไม่ระบุ');
+          $catFilled = count(array_filter($catItems, function($i) use ($dataMap) {
+              $d = $dataMap[(int)$i['ItemID']] ?? null; return $d && $d['Quantity'] !== null;
+          }));
+          $isEmpty     = empty($catItems);
+          $activeClass = (!$isEmpty && $firstCat) ? 'active' : '';
+          $disabledCls = $isEmpty ? ' cat-tab-disabled' : '';
+      ?>
+      <button class="cat-tab <?php echo $activeClass; ?><?php echo $disabledCls; ?>"
+              onclick="<?php echo $isEmpty ? 'void(0)' : 'switchCat('.$catNo.')'; ?>"
+              id="catTab<?php echo $catNo; ?>"
+              <?php echo $isEmpty ? 'title="'.$catInfo['full'].' — ยังไม่มีรายการกิจกรรม"' : ''; ?>>
+        <i class="<?php echo $catInfo['icon']; ?>" style="font-size:0.85rem;color:<?php echo $catInfo['color']; ?>;"></i>
+        <?php echo htmlspecialchars($catInfo['label']); ?>
+        <span class="tab-cnt"><?php echo $catFilled; ?>/<?php echo count($catItems); ?></span>
+      </button>
+      <?php $firstCat = false; } ?>
+    </div>
+    <button type="button" class="cat-scroll-btn fade-right" onclick="scrollCatTabs(160)"><i class="bi bi-chevron-right"></i></button>
   </div>
 
   <!-- Tab contents -->
@@ -569,6 +678,11 @@ body { font-family:'Prompt',sans-serif; }
           <?php if ($isSuperAdmin && $apInfo) { ?>
           <br><a href="<?php echo $apInfo['url']; ?>" target="_blank" style="font-size:0.68rem;color:var(--cfp-text-muted);">
             + เพิ่ม<?php echo htmlspecialchars($apInfo['label']); ?>
+          </a>
+          <?php } ?>
+          <?php if ($canEdit && $apInfo) { ?>
+          <br><a href="#" onclick="requestAsset(3,'<?php echo $apInfo['type']; ?>','<?php echo htmlspecialchars($apInfo['typeLabel']); ?>');return false;" style="font-size:0.68rem;color:var(--cfp-primary);">
+            <i class="bi bi-plus-circle"></i> ขอเพิ่มทรัพย์สินใหม่
           </a>
           <?php } ?>
           <?php } ?>
@@ -722,7 +836,7 @@ body { font-family:'Prompt',sans-serif; }
       </div>
       <?php if ($canEdit) { ?>
       <div class="desktop-only d-flex gap-2">
-        <?php if ($hdrID > 0 && $hdrStatus === 0) { ?>
+        <?php if ($hdrID > 0 && $hdrStatus === 0 && $filledItems > 0) { ?>
         <button class="btn btn-sm btn-outline-danger font-prompt" onclick="confirmCancelDraft()" style="font-size:0.8rem;">
           <i class="bi bi-trash me-1"></i>ยกเลิก Draft
         </button>
@@ -793,8 +907,55 @@ function switchCat(catNo) {
     var el = document.getElementById('cat' + catNo);
     var tab = document.getElementById('catTab' + catNo);
     if (el)  { el.style.display = ''; }
-    if (tab) { tab.classList.add('active'); }
+    if (tab) { tab.classList.add('active'); tab.scrollIntoView({ block:'nearest', inline:'center', behavior:'smooth' }); }
 }
+
+/* ── เลื่อนแถบ tab หมวด Scope 3 ด้วยปุ่มลูกศร ── */
+function scrollCatTabs(delta) {
+    var wrap = document.getElementById('catTabs');
+    if (wrap) { wrap.scrollBy({ left: delta, behavior: 'smooth' }); }
+}
+
+/* ── fade ซ้าย/ขวา — โชว์เฉพาะด้านที่ยังเลื่อนได้อีก ── */
+(function () {
+    var tabs = document.getElementById('catTabs');
+    var fadeL = document.getElementById('catFadeLeft');
+    var fadeR = document.getElementById('catFadeRight');
+    if (!tabs || !fadeL || !fadeR) { return; }
+
+    function updateFade() {
+        var maxScroll = tabs.scrollWidth - tabs.clientWidth;
+        fadeL.classList.toggle('show', tabs.scrollLeft > 4);
+        fadeR.classList.toggle('show', tabs.scrollLeft < maxScroll - 4);
+    }
+    updateFade();
+    tabs.addEventListener('scroll', updateFade);
+    window.addEventListener('resize', updateFade);
+
+    /* ── ลากตรงกลางแถบ tab ด้วยเมาส์ (desktop) เพื่อเลื่อนซ้าย-ขวา ── */
+    var isDragging = false, dragStartX = 0, dragStartScroll = 0, moved = false;
+    tabs.addEventListener('mousedown', function (e) {
+        isDragging = true; moved = false;
+        dragStartX = e.pageX;
+        dragStartScroll = tabs.scrollLeft;
+        tabs.classList.add('dragging');
+    });
+    window.addEventListener('mousemove', function (e) {
+        if (!isDragging) { return; }
+        var dx = e.pageX - dragStartX;
+        if (Math.abs(dx) > 3) { moved = true; }
+        tabs.scrollLeft = dragStartScroll - dx;
+    });
+    window.addEventListener('mouseup', function () {
+        if (!isDragging) { return; }
+        isDragging = false;
+        tabs.classList.remove('dragging');
+    });
+    /* กันไม่ให้ click หลังลากไปโดนปุ่ม tab โดยไม่ตั้งใจ */
+    tabs.addEventListener('click', function (e) {
+        if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; }
+    }, true);
+})();
 
 /* ── calcCO2 (desktop) ── */
 function calcCO2(iid, ef) {
@@ -870,20 +1031,28 @@ function collectData() {
 }
 
 /* ── save draft ── */
+/* ── Lock กัน race condition: ห้ามกด บันทึกร่าง/ส่งอนุมัติ ซ้อนกันจนกว่า request แรกจะเสร็จ ── */
+var isSavingScope3 = false;
+
 function saveDraft() {
+    if (isSavingScope3) { return; }
     var rows = collectData();
     if (!rows.length) {
         Swal.fire({ icon:'warning', title:'ไม่มีข้อมูลที่จะบันทึก', confirmButtonText:'ตกลง', confirmButtonColor:'#2AABB8', customClass:{popup:'font-prompt'} });
         return;
     }
+    isSavingScope3 = true;
     Swal.fire({ title:'กำลังบันทึก...', allowOutsideClick:false, didOpen:function(){Swal.showLoading();} });
     fetch('/carbonfootprint/data_entry/scope3_save.php', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ action:'draft', siteID:SITE_ID, yearMonth:YM, csrf_token:CSRF, rows:rows })
+        body: JSON.stringify({ action:'draft', siteID:SITE_ID, yearMonth:YM, csrf_token:CSRF, rows:rows,
+                                responsibleName: document.getElementById('responsibleName').value.trim(),
+                                responsibleDeptID: document.getElementById('responsibleDept').value })
     })
     .then(function(r){ return r.json(); })
     .then(function(res) {
+        isSavingScope3 = false;
         if (res.success) {
             Swal.fire({ icon:'success', title:'บันทึกร่างสำเร็จ', timer:1500, showConfirmButton:false, customClass:{popup:'font-prompt'} })
             .then(function(){ location.reload(); });
@@ -892,12 +1061,14 @@ function saveDraft() {
         }
     })
     .catch(function() {
+        isSavingScope3 = false;
         Swal.fire({ icon:'error', title:'เชื่อมต่อ server ไม่ได้', confirmButtonText:'ตกลง', customClass:{popup:'font-prompt'} });
     });
 }
 
 /* ── confirm submit ── */
 function confirmSubmit() {
+    if (isSavingScope3) { return; }
     var rows = collectData();
     if (!rows.length) {
         Swal.fire({ icon:'warning', title:'กรุณากรอกข้อมูลก่อนส่ง', confirmButtonText:'ตกลง', confirmButtonColor:'#2AABB8', customClass:{popup:'font-prompt'} });
@@ -915,14 +1086,19 @@ function confirmSubmit() {
         customClass:{popup:'font-prompt'}
     }).then(function(result) {
         if (!result.isConfirmed) { return; }
+        if (isSavingScope3) { return; }
+        isSavingScope3 = true;
         Swal.fire({ title:'กำลังส่ง...', allowOutsideClick:false, didOpen:function(){Swal.showLoading();} });
         fetch('/carbonfootprint/data_entry/scope3_save.php', {
             method:'POST',
             headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ action:'submit', siteID:SITE_ID, yearMonth:YM, csrf_token:CSRF, rows:rows })
+            body: JSON.stringify({ action:'submit', siteID:SITE_ID, yearMonth:YM, csrf_token:CSRF, rows:rows,
+                                    responsibleName: document.getElementById('responsibleName').value.trim(),
+                                    responsibleDeptID: document.getElementById('responsibleDept').value })
         })
         .then(function(r){ return r.json(); })
         .then(function(res) {
+            isSavingScope3 = false;
             if (res.success) {
                 Swal.fire({ icon:'success', title:'ส่งอนุมัติเรียบร้อย!', text:res.msg, timer:3000, timerProgressBar:true, showConfirmButton:true, confirmButtonText:'ตกลง', confirmButtonColor:'#2AABB8', customClass:{popup:'font-prompt'} })
                 .then(function(){ location.reload(); });
@@ -931,6 +1107,7 @@ function confirmSubmit() {
             }
         })
         .catch(function(){
+            isSavingScope3 = false;
             Swal.fire({ icon:'error', title:'เชื่อมต่อ server ไม่ได้', confirmButtonText:'ตกลง', customClass:{popup:'font-prompt'} });
         });
     });
@@ -939,6 +1116,156 @@ function confirmSubmit() {
 /* ── attach file ── */
 function openAttach(iid) {
     Swal.fire({ icon:'info', title:'แนบไฟล์', text:'ยังใช้งานไม่ได้', confirmButtonText:'ตกลง', customClass:{popup:'font-prompt'} });
+}
+
+/* ── ขอเพิ่มทรัพย์สินใหม่ (Data Entry ส่งคำขอให้ Admin ไปสร้างทะเบียนจริง) ── */
+var ASSET_FIELD_SPECS = {
+    Equipment: {
+        primaryLabel: 'ชื่อเครื่องจักร', fields: [
+            { key: 'equipmentType', label: 'ประเภทเครื่องจักร', type: 'select', group: 'equipmentType' },
+            { key: 'fuelType', label: 'ประเภทเชื้อเพลิง', type: 'select', group: 'fuelType' }
+        ]
+    },
+    Vehicle: {
+        primaryLabel: 'ทะเบียนรถ', fields: [
+            { key: 'vehicleType', label: 'ประเภทพาหนะ', type: 'select', group: 'vehicleType' },
+            { key: 'fuelType', label: 'ประเภทเชื้อเพลิง', type: 'select', group: 'fuelType' }
+        ]
+    },
+    Refrigerant: {
+        primaryLabel: 'ชื่ออุปกรณ์', fields: [
+            { key: 'refrigerantType', label: 'ประเภทสารทำความเย็น', type: 'select', group: 'refrigerantType' },
+            { key: 'capacity', label: 'ขนาด (Btu/hr)', type: 'number' },
+            { key: 'chargeKg', label: 'ปริมาณสารทำความเย็น (kg)', type: 'number' }
+        ]
+    },
+    WaterMeter: {
+        primaryLabel: 'ชื่อมิเตอร์', fields: [
+            { key: 'waterMeterType', label: 'ประเภทมิเตอร์', type: 'select', group: 'waterMeterType' },
+            { key: 'waterSourceType', label: 'แหล่งน้ำ', type: 'select', group: 'waterSourceType' },
+            { key: 'location', label: 'ตำแหน่งติดตั้ง', type: 'text' }
+        ]
+    },
+    ElectricMeter: {
+        primaryLabel: 'ชื่อมิเตอร์', fields: [
+            { key: 'electricMeterType', label: 'ประเภทมิเตอร์', type: 'select', group: 'electricMeterType' },
+            { key: 'electricSourceType', label: 'แหล่งไฟฟ้า', type: 'select', group: 'electricSourceType' },
+            { key: 'location', label: 'ตำแหน่งติดตั้ง', type: 'text' }
+        ]
+    },
+    Vendor: {
+        primaryLabel: 'ชื่อชาวสวน/ฟาร์ม', fields: [
+            { key: 'vendorType', label: 'ประเภทชาวสวน', type: 'text' },
+            { key: 'taxID', label: 'เลขประจำตัวผู้เสียภาษี', type: 'text' },
+            { key: 'productType', label: 'ประเภทสินค้า', type: 'text' },
+            { key: 'transportDist', label: 'ระยะทางขนส่ง (กม.)', type: 'number' },
+            { key: 'contactName', label: 'ชื่อผู้ติดต่อ', type: 'text' },
+            { key: 'phone', label: 'เบอร์โทร', type: 'text' },
+            { key: 'address', label: 'ที่อยู่', type: 'text' },
+            { key: 'province', label: 'จังหวัด', type: 'text' }
+        ]
+    },
+    Waste: {
+        primaryLabel: 'ชื่อขยะ/ของเสีย', fields: [
+            { key: 'wasteType', label: 'ประเภทขยะ', type: 'select', group: 'wasteType' },
+            { key: 'disposalMethod', label: 'วิธีกำจัด', type: 'select', group: 'disposalMethod' },
+            { key: 'disposalSite', label: 'สถานที่กำจัด', type: 'select', group: 'disposalSite' },
+            { key: 'location', label: 'ตำแหน่งจัดเก็บในโรงงาน', type: 'text' }
+        ]
+    },
+    Employee: {
+        primaryLabel: 'ชื่อ-นามสกุล', fields: [
+            { key: 'department', label: 'แผนก (Admin เป็นคนเลือกจากลิสต์จริง)', type: 'text' },
+            { key: 'commuteType', label: 'ประเภทการเดินทาง', type: 'select', staticOptions: [
+                'รถยนต์ส่วนตัว', 'มอเตอร์ไซค์', 'รถสาธารณะ', 'เดินเท้า/จักรยาน', 'รถตู้องค์กร', 'อื่นๆ'
+            ] },
+            { key: 'workDays', label: 'วันทำงานต่อเดือน', type: 'number' },
+            { key: 'commuteDist', label: 'ระยะทาง (กม./เที่ยว)', type: 'number' }
+        ]
+    }
+};
+
+function requestAsset(scopeNo, assetType, typeLabel) {
+    var spec = ASSET_FIELD_SPECS[assetType] || { primaryLabel: 'ชื่อ/รายละเอียด', fields: [] };
+    var needsOptions = spec.fields.some(function (f) { return f.type === 'select' && f.group; });
+
+    var buildAndShow = function (optionGroups) {
+        var html = '<div class="text-start">';
+        html += '<label class="form-label" style="font-size:0.8rem;font-weight:600;">' + spec.primaryLabel + ' <span class="text-danger">*</span></label>';
+        html += '<input id="reqf_primary" type="text" class="form-control mb-2" style="font-family:\'Prompt\',sans-serif;">';
+        spec.fields.forEach(function (f) {
+            html += '<label class="form-label" style="font-size:0.8rem;font-weight:600;">' + f.label + '</label>';
+            if (f.type === 'select') {
+                var opts = f.staticOptions
+                    ? f.staticOptions.map(function (o) { return { id: o, name: o }; })
+                    : ((optionGroups && optionGroups[f.group]) || []);
+                html += '<select id="reqf_' + f.key + '" class="form-select mb-2" style="font-family:\'Prompt\',sans-serif;"><option value="">— ไม่ระบุ —</option>';
+                opts.forEach(function (o) { html += '<option value="' + o.name.replace(/"/g, '&quot;') + '">' + o.name + '</option>'; });
+                html += '</select>';
+            } else {
+                html += '<input id="reqf_' + f.key + '" type="' + (f.type === 'number' ? 'number' : 'text') + '" class="form-control mb-2" style="font-family:\'Prompt\',sans-serif;">';
+            }
+        });
+        html += '<label class="form-label" style="font-size:0.8rem;font-weight:600;">หมายเหตุเพิ่มเติม</label>';
+        html += '<textarea id="reqf_extra" class="form-control" rows="2" style="font-family:\'Prompt\',sans-serif;"></textarea>';
+        html += '</div>';
+
+        Swal.fire({
+            title: 'ขอเพิ่ม' + typeLabel + 'ใหม่',
+            html: html,
+            showCancelButton: true,
+            confirmButtonText: 'ส่งคำขอ',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#2AABB8',
+            customClass: { popup: 'font-prompt' },
+            width: 480,
+            preConfirm: function () {
+                var primary = document.getElementById('reqf_primary').value.trim();
+                if (!primary) { Swal.showValidationMessage('กรุณาระบุ' + spec.primaryLabel); return false; }
+                var lines = [];
+                var details = { primary: primary };
+                spec.fields.forEach(function (f) {
+                    var el = document.getElementById('reqf_' + f.key);
+                    var val = el ? el.value.trim() : '';
+                    if (val) { lines.push(f.label + ': ' + val); details[f.key] = val; }
+                });
+                var extra = document.getElementById('reqf_extra').value.trim();
+                if (extra) { lines.push('หมายเหตุเพิ่มเติม: ' + extra); details.remark = extra; }
+                return { name: primary, remark: lines.join(' | '), details: details };
+            }
+        }).then(function (result) {
+            if (!result.isConfirmed) { return; }
+            fetch('/carbonfootprint/data_entry/asset_request_save.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scopeNo: scopeNo, assetType: assetType, siteID: SITE_ID,
+                    requestedName: result.value.name, remark: result.value.remark, details: result.value.details, csrf_token: CSRF
+                })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                Swal.fire({
+                    icon: data.success ? 'success' : 'error',
+                    title: data.success ? 'ส่งคำขอแล้ว' : 'เกิดข้อผิดพลาด',
+                    text: data.msg, confirmButtonColor: '#2AABB8', customClass: { popup: 'font-prompt' }
+                });
+            })
+            .catch(function () {
+                Swal.fire({ icon: 'error', title: 'เชื่อมต่อ server ไม่ได้', confirmButtonColor: '#2AABB8', customClass: { popup: 'font-prompt' } });
+            });
+        });
+    };
+
+    if (needsOptions) {
+        Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: function () { Swal.showLoading(); } });
+        fetch('/carbonfootprint/data_entry/asset_request_options.php?assetType=' + encodeURIComponent(assetType))
+            .then(function (r) { return r.json(); })
+            .then(function (data) { buildAndShow(data.groups || {}); })
+            .catch(function () { buildAndShow({}); });
+    } else {
+        buildAndShow({});
+    }
 }
 
 /* ── filter ── */

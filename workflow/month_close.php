@@ -1,13 +1,13 @@
 <?php
 /* =============================================================
    workflow/month_close.php
-   ปิดเดือน (Month Close) — เฉพาะ Role 5 (SustainAdmin)
+   ปิดเดือน (Month Close) — Role 3 (Approver) + Role 5 (SustainAdmin)
    - ตรวจสอบว่าทุก Site × Scope Approved ครบก่อนปิด
    - ปิดเดือน = UPDATE CFP_MonthlyHeader Status=3, ClosedBy, ClosedDate
    ============================================================= */
 require_once '../includes/auth_check.php';
 require_once '../config/db.php';
-requireRole(array(5)); /* SustainAdmin เท่านั้น */
+requireRole(array(3, 5)); /* Approver + SustainAdmin */
 
 $conn   = getConnection();
 $userID = (int)$_SESSION['user_id'];
@@ -209,10 +209,9 @@ body { font-family:'Prompt',sans-serif; }
 </style>
 </head>
 <body>
-<?php
-include '../includes/sidebar.php';
-include '../includes/topbar.php';
-?>
+<?php include '../includes/sidebar.php'; ?>
+<div class="cfp-main">
+<?php include '../includes/topbar.php'; ?>
 <div class="cfp-content">
 
   <!-- Page Header -->
@@ -235,7 +234,7 @@ include '../includes/topbar.php';
         <div style="font-size:0.95rem;font-weight:600;color:var(--cfp-text);">
           <?php echo htmlspecialchars($ymLabelTH); ?>
         </div>
-        <div style="font-size:0.75rem;color:var(--cfp-text-muted);">Sustainability Admin เท่านั้น</div>
+        <div style="font-size:0.75rem;color:var(--cfp-text-muted);">Approver / Sustainability Admin เท่านั้น</div>
       </div>
       <div class="d-flex align-items-center gap-2">
         <a href="?ym=<?php echo $prevYM; ?>" class="btn btn-outline-secondary btn-sm py-1 px-2">
@@ -475,6 +474,7 @@ include '../includes/topbar.php';
 
   </div><!-- end cfp-card -->
 </div><!-- end cfp-content -->
+</div><!-- end cfp-main -->
 
 <!-- Hidden form -->
 <form id="formClose" method="POST" action="month_close_handler.php" style="display:none;">

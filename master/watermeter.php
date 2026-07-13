@@ -4,7 +4,7 @@
 */
 require_once '../includes/auth_check.php';
 require_once '../config/db.php';
-requireRole(array(4));
+requireRole(array(4, 5));
 $conn = getConnection();
 $myUserID = (int)$_SESSION['user_id'];
 
@@ -794,9 +794,47 @@ function openModal(id) {
 }
 
 // ============================================================
+// Pre-fill จากคำขอเพิ่มทรัพย์สิน (master/asset_requests.php ส่ง query string มา)
+// ============================================================
+function cfpSelectByText(selectEl, text) {
+    if (!selectEl || !text) { return; }
+    text = text.trim();
+    for (var i = 0; i < selectEl.options.length; i++) {
+        if (selectEl.options[i].text.indexOf(text) !== -1) { selectEl.selectedIndex = i; return; }
+    }
+}
+
+function cfpApplyPrefillFromRequest() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('prefill') !== '1') { return; }
+
+    openModal(0);
+
+    var name = params.get('name');
+    var site = params.get('site');
+    var mtype = params.get('watermetertype');
+    var wsrc = params.get('watersourcetype');
+    var meterNo = params.get('meterno');
+    var install = params.get('installdate');
+    var location = params.get('location');
+    var remark = params.get('remark');
+
+    if (name) { document.getElementById('fName').value = name; }
+    if (site) { document.getElementById('fSite').value = site; }
+    if (mtype) { cfpSelectByText(document.getElementById('fMType'), mtype); }
+    if (wsrc) { cfpSelectByText(document.getElementById('fWSrc'), wsrc); }
+    if (meterNo) { document.getElementById('fMNo').value = meterNo; }
+    if (install) { document.getElementById('fInstall').value = install; }
+    if (location) { document.getElementById('fLoc').value = location; }
+    if (remark) { document.getElementById('fRemark').value = remark; }
+}
+
+// ============================================================
 // DOMContentLoaded
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
+
+    cfpApplyPrefillFromRequest();
 
     document.getElementById('btnSave').addEventListener('click', function() {
         var btn = this;

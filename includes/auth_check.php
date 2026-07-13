@@ -37,14 +37,39 @@ if (empty($_SESSION['csrf_token'])) {
 /**
  * คืน Role ที่มีผลจริง ณ ขณะนี้
  * - ปกติ = $_SESSION['role_id']
+ * - Admin + View-as user คนอื่น = Role จริงของ user คนนั้น (cache ไว้ตอน start view-as)
  * - Admin + Elevating = $_SESSION['elevated_role']
  */
 function getEffectiveRole() {
     $baseRole = (int)($_SESSION['role_id'] ?? 0);
+    if ($baseRole === 4 && !empty($_SESSION['view_as_user_id'])) {
+        return (int)($_SESSION['view_as_role_id'] ?? 0);
+    }
     if ($baseRole === 4 && !empty($_SESSION['elevated_role'])) {
         return (int)$_SESSION['elevated_role'];
     }
     return $baseRole;
+}
+
+/**
+ * คืน UserID ที่มีผลจริง ณ ขณะนี้ — ใช้แทน $_SESSION['user_id'] ตรงๆ
+ * ทุกจุดที่กรองสิทธิ์ตาม UserID (เช่น CFP_UserScopeAccess) ต้องใช้ตัวนี้
+ * เพื่อให้ Admin ที่กำลัง View-as เห็นสิทธิ์ตรงกับ user ที่สวมอยู่จริง
+ */
+function getEffectiveUserID() {
+    $baseRole = (int)($_SESSION['role_id'] ?? 0);
+    if ($baseRole === 4 && !empty($_SESSION['view_as_user_id'])) {
+        return (int)$_SESSION['view_as_user_id'];
+    }
+    return (int)($_SESSION['user_id'] ?? 0);
+}
+
+/**
+ * ตรวจว่า Admin กำลัง View-as (สวมสิทธิ์เป็น user คนอื่น) อยู่ไหม
+ */
+function isViewingAs() {
+    return (int)($_SESSION['role_id'] ?? 0) === 4
+        && !empty($_SESSION['view_as_user_id']);
 }
 
 /**

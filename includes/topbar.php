@@ -10,39 +10,28 @@ $elevRole     = (int)($_SESSION['elevated_role'] ?? 0);
 $elevStart    = $_SESSION['elevation_start'] ?? '';
 $elevReason   = $_SESSION['elevation_reason'] ?? '';
 $isAdmin      = (int)$_SESSION['role_id'] === 4;
+$isAdminOrSustain = in_array((int)$_SESSION['role_id'], array(4, 5));
 
-/* ===== Notification Badge: รออนุมัติ ===== */
-$_notifCount = 0;
-$_notifItems = array();
+$isViewingAs  = !empty($_SESSION['view_as_user_id']);
+$viewAsName   = $_SESSION['view_as_name'] ?? '';
+$viewAsStart  = $_SESSION['view_as_start'] ?? '';
+$viewAsReason = $_SESSION['view_as_reason'] ?? '';
+
+/* ===== Notification Badge: รออนุมัติ =====
+   Bug fix: CFP_ActivityData ไม่มีคอลัมน์ Status (Status อยู่ที่ CFP_MonthlyHeader เท่านั้น)
+   query เดิม query ผิดตาราง (a.Status) ทำให้ error ทุกครั้งแบบเงียบๆ (@ กลืน error)
+   กระดิ่งเลยไม่เคยแสดงอะไรเลยให้ใครทั้งนั้น — logic ย้ายไป includes/notif_status.php
+   เพื่อใช้ร่วมกับ includes/notif_check.php (AJAX รีเฟรชกระดิ่งอัตโนมัติ) ===== */
+require_once __DIR__ . '/notif_status.php';
 $_notifRoleID = getEffectiveRole();
-if (in_array($_notifRoleID, array(2, 3, 4, 5))) {
-    $_notifConn = getConnection();
-    $_notifSQL  = "
-        SELECT TOP 5
-               a.DataID, i.ItemName, i.ScopeNo,
-               s.SiteName, us.FullName AS SubmitterName,
-               a.SubmittedDate
-        FROM CFP_ActivityData a
-        JOIN CFP_ActivityItem i ON i.ItemID = a.ItemID
-        LEFT JOIN CFP_Site s ON s.SiteID = a.SiteID
-        LEFT JOIN CFP_User us ON us.UserID = a.SubmittedBy
-        WHERE a.Status = 'Submitted'
-        ORDER BY a.SubmittedDate DESC
-    ";
-    $_notifRes = @sqlsrv_query($_notifConn, $_notifSQL);
-    if ($_notifRes) {
-        while ($_notifRow = sqlsrv_fetch_array($_notifRes, SQLSRV_FETCH_ASSOC)) {
-            $_notifItems[] = $_notifRow;
-        }
-    }
-    /* count total */
-    $_notifCntSQL = "SELECT COUNT(*) AS C FROM CFP_ActivityData WHERE Status='Submitted'";
-    $_notifCntRes = @sqlsrv_query($_notifConn, $_notifCntSQL);
-    if ($_notifCntRes) {
-        $_notifCntRow = sqlsrv_fetch_array($_notifCntRes, SQLSRV_FETCH_ASSOC);
-        $_notifCount  = $_notifCntRow ? (int)$_notifCntRow['C'] : 0;
-    }
-}
+$_notifData   = cfpGetNotifications(getConnection(), $_notifRoleID, getEffectiveUserID());
+$_notifCount  = $_notifData['count'];          /* รวมทุกประเภท ใช้กับ badge หลัก */
+$_notifApprovalCount = $_notifData['approvalCount'];
+$_notifItems  = $_notifData['items'];
+$_notifAssetReqCount = $_notifData['assetRequestCount'];
+$_notifAssetReqItems = $_notifData['assetRequestItems'];
+$_notifFulfilledCount = $_notifData['fulfilledCount'];
+$_notifFulfilledItems = $_notifData['fulfilledItems'];
 $_notifScopeColor = array(1=>'#43A047', 2=>'#7C3AED', 3=>'#F59E0B');
 
 $roleNames    = array(2 => 'Reviewer', 3 => 'Approver');
@@ -110,6 +99,45 @@ $rNames = array(
 </div>
 <?php } ?>
 
+<?php if ($isViewingAs) { ?>
+<!-- ===== VIEW-AS BANNER (read-only) — โทนเดียวกับ Elevation แต่เข้ม/เด่นกว่า ===== -->
+<div id="viewAsBanner"
+     style="background:linear-gradient(90deg, #D97706, #F59E0B);border-bottom:1px solid #B45309;
+            padding:6px 1.5rem;display:flex;align-items:center;
+            justify-content:space-between;font-family:'Prompt',sans-serif;
+            position:sticky;top:0;z-index:901;box-shadow:0 1px 6px rgba(180,83,9,0.3);">
+    <div style="display:flex;align-items:center;gap:10px;">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;
+                     background:#fff;
+                     animation:cfpPulse 1.5s infinite;flex-shrink:0;"></span>
+        <span style="font-size:0.8rem;font-weight:600;color:#fff;">
+            <i class="bi bi-eye-fill me-1"></i>
+            Admin กำลังดูแทน <strong><?php echo htmlspecialchars($viewAsName); ?></strong>
+            <span style="background:rgba(255,255,255,0.9);color:#B45309;border-radius:6px;padding:1px 6px;font-size:0.68rem;font-weight:700;margin-left:4px;">Read-only</span>
+        </span>
+        <?php if ($viewAsStart !== '') { ?>
+        <span style="font-size:0.75rem;color:rgba(255,255,255,0.85);">
+            | เริ่ม <?php echo htmlspecialchars($viewAsStart); ?> น.
+        </span>
+        <?php } ?>
+        <?php if ($viewAsReason !== '') { ?>
+        <span style="font-size:0.75rem;color:rgba(255,255,255,0.85);
+                     max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+              title="<?php echo htmlspecialchars($viewAsReason); ?>">
+            — <?php echo htmlspecialchars($viewAsReason); ?>
+        </span>
+        <?php } ?>
+    </div>
+    <button onclick="endViewAs()"
+            style="font-family:'Prompt',sans-serif;font-size:0.78rem;font-weight:600;
+                   background:#fff;color:#B45309;border:1px solid rgba(255,255,255,0.6);
+                   border-radius:7px;padding:4px 12px;cursor:pointer;
+                   display:flex;align-items:center;gap:5px;white-space:nowrap;">
+        <i class="bi bi-stop-circle"></i> สิ้นสุด View-as
+    </button>
+</div>
+<?php } ?>
+
 
 <style>
 @keyframes cfpBellPulse {
@@ -167,7 +195,7 @@ $rNames = array(
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <!-- ===== TOPBAR ===== -->
-<div class="cfp-topbar" style="<?php echo $isElevated ? 'top:37px;' : ''; ?>">
+<div class="cfp-topbar" style="<?php echo ($isElevated || $isViewingAs) ? 'top:37px;' : ''; ?>">
 
     <!-- Wave SVG V2 — ล่าง 3 ชั้น + บน 2 ชั้น เหมือน login -->
     <svg aria-hidden="true"
@@ -220,7 +248,7 @@ $rNames = array(
 
     <div class="topbar-right d-flex align-items-center gap-2" style="position:relative;z-index:1;">
 
-        <?php if ($isAdmin && !$isElevated) { ?>
+        <?php if ($isAdmin && !$isElevated && !$isViewingAs) { ?>
         <!-- Elevation button — ซ่อนบน mobile -->
         <button onclick="openElevationModal()"
                 title="ทำงานแทน Role อื่น"
@@ -230,24 +258,34 @@ $rNames = array(
         </button>
         <?php } ?>
 
+        <?php if ($isAdmin && !$isElevated && !$isViewingAs) { ?>
+        <!-- View-as button — ซ่อนบน mobile -->
+        <button onclick="openViewAsModal()"
+                title="ดูแทน User คนใดคนหนึ่ง (Read-only)"
+                class="topbar-elev-btn topbar-hide-mobile">
+            <i class="bi bi-eye"></i>
+            <span class="d-none d-lg-inline">View as</span>
+        </button>
+        <?php } ?>
+
 
         <!-- Bell notification -->
         <div class="topbar-ic-round topbar-hide-mobile" style="position:relative;" id="cfpBellWrap">
             <i class="bi bi-bell<?php echo $_notifCount > 0 ? '-fill cfp-bell-animate' : ''; ?>" id="cfpBellIcon"></i>
-            <?php if ($_notifCount > 0) { ?>
-            <span class="cfp-notif-badge" id="cfpNotifBadge">
+            <span class="cfp-notif-badge" id="cfpNotifBadge" style="<?php echo $_notifCount > 0 ? '' : 'display:none;'; ?>">
                 <?php echo $_notifCount > 99 ? '99+' : $_notifCount; ?>
             </span>
-            <?php } ?>
 
             <!-- Dropdown -->
             <div class="cfp-notif-dropdown" id="cfpNotifDropdown">
+                <?php if ($_notifRoleID !== 1) { ?>
                 <div class="cfp-notif-hd">
                     <span class="cfp-notif-hd-title"><i class="bi bi-bell-fill me-1" style="color:#F59E0B;"></i>รออนุมัติ</span>
-                    <?php if ($_notifCount > 0) { ?>
-                    <span class="cfp-notif-hd-badge"><?php echo $_notifCount; ?> รายการ</span>
-                    <?php } ?>
+                    <span class="cfp-notif-hd-badge" id="cfpNotifHdBadge" style="<?php echo $_notifApprovalCount > 0 ? '' : 'display:none;'; ?>">
+                        <?php echo $_notifApprovalCount; ?> รายการ
+                    </span>
                 </div>
+                <div id="cfpNotifBody">
                 <?php if (empty($_notifItems)) { ?>
                 <div class="cfp-notif-empty">
                     <i class="bi bi-inbox" style="font-size:1.4rem;display:block;margin-bottom:4px;"></i>
@@ -262,7 +300,7 @@ $rNames = array(
                 <a href="/carbonfootprint/workflow/review.php" class="cfp-notif-item">
                     <div class="cfp-notif-dot" style="background:<?php echo $_niColor; ?>;"></div>
                     <div>
-                        <div class="cfp-notif-name"><?php echo htmlspecialchars($_ni['ItemName']); ?></div>
+                        <div class="cfp-notif-name"><?php echo htmlspecialchars($_ni['ItemName'] ?? 'ไม่มีรายการ'); ?></div>
                         <div class="cfp-notif-sub">
                             <?php echo $_niScope; ?>
                             <?php if (!empty($_ni['SiteName'])) echo ' · ' . htmlspecialchars($_ni['SiteName']); ?>
@@ -272,20 +310,104 @@ $rNames = array(
                     </div>
                 </a>
                 <?php } ?>
-                <?php if ($_notifCount > 5) { ?>
+                <?php if ($_notifApprovalCount > 5) { ?>
                 <div class="cfp-notif-footer">
-                    <a href="/carbonfootprint/workflow/review.php">ดูทั้งหมด <?php echo $_notifCount; ?> รายการ →</a>
+                    <a href="/carbonfootprint/workflow/review.php">ดูทั้งหมด <?php echo $_notifApprovalCount; ?> รายการ →</a>
                 </div>
                 <?php } ?>
+                <?php } ?>
+                </div>
+                <?php } ?>
+
+                <?php if ($_notifRoleID === 1) { ?>
+                <!-- ===== Data Entry: คำขอเพิ่มทรัพย์สินที่ Admin ทำเสร็จแล้ว (7 วันล่าสุด) ===== -->
+                <div class="cfp-notif-hd">
+                    <span class="cfp-notif-hd-title"><i class="bi bi-box-seam me-1" style="color:#2AABB8;"></i>ทรัพย์สินพร้อมใช้แล้ว</span>
+                    <span class="cfp-notif-hd-badge" id="cfpFulfilledHdBadge" style="<?php echo $_notifFulfilledCount > 0 ? '' : 'display:none;'; ?>">
+                        <?php echo $_notifFulfilledCount; ?> รายการ
+                    </span>
+                </div>
+                <div id="cfpFulfilledBody">
+                <?php if (empty($_notifFulfilledItems)) { ?>
+                <div class="cfp-notif-empty">
+                    <i class="bi bi-inbox" style="font-size:1.4rem;display:block;margin-bottom:4px;"></i>
+                    ยังไม่มีคำขอที่ทำเสร็จ
+                </div>
+                <?php } else { ?>
+                <?php foreach ($_notifFulfilledItems as $_fr) {
+                    $_frDate = $_fr['ClosedDate'] instanceof DateTime ? $_fr['ClosedDate']->format('d M Y') : '';
+                ?>
+                <a href="/carbonfootprint/data_entry/my_asset_requests.php" class="cfp-notif-item">
+                    <div class="cfp-notif-dot" style="background:#43A047;"></div>
+                    <div>
+                        <div class="cfp-notif-name"><?php echo htmlspecialchars($_fr['AssetType'] . ': ' . $_fr['RequestedName']); ?></div>
+                        <div class="cfp-notif-sub">
+                            Scope <?php echo (int)$_fr['ScopeNo']; ?>
+                            <?php if (!empty($_fr['SiteName'])) echo ' · ' . htmlspecialchars($_fr['SiteName']); ?>
+                            <?php if (!empty($_fr['ClosedByName'])) echo ' · โดย ' . htmlspecialchars($_fr['ClosedByName']); ?>
+                            <?php if ($_frDate) echo ' · ' . $_frDate; ?>
+                        </div>
+                    </div>
+                </a>
+                <?php } ?>
+                <?php if ($_notifFulfilledCount > 5) { ?>
+                <div class="cfp-notif-footer">
+                    <a href="/carbonfootprint/data_entry/my_asset_requests.php">ดูทั้งหมด <?php echo $_notifFulfilledCount; ?> รายการ →</a>
+                </div>
+                <?php } ?>
+                <?php } ?>
+                </div>
+                <?php } ?>
+
+                <?php if (in_array($_notifRoleID, array(4, 5))) { ?>
+                <!-- ===== Section 2: คำขอเพิ่มทรัพย์สินใหม่ — Admin และ Sustainability Admin ===== -->
+                <div class="cfp-notif-hd" style="border-top:1px solid #D0E8EE;">
+                    <span class="cfp-notif-hd-title"><i class="bi bi-box-seam me-1" style="color:#2AABB8;"></i>คำขอเพิ่มทรัพย์สิน</span>
+                    <span class="cfp-notif-hd-badge" id="cfpAssetReqHdBadge" style="<?php echo $_notifAssetReqCount > 0 ? '' : 'display:none;'; ?>">
+                        <?php echo $_notifAssetReqCount; ?> รายการ
+                    </span>
+                </div>
+                <div id="cfpAssetReqBody">
+                <?php if (empty($_notifAssetReqItems)) { ?>
+                <div class="cfp-notif-empty">
+                    <i class="bi bi-inbox" style="font-size:1.4rem;display:block;margin-bottom:4px;"></i>
+                    ไม่มีคำขอค้างอยู่
+                </div>
+                <?php } else { ?>
+                <?php foreach ($_notifAssetReqItems as $_ar) {
+                    $_arDate = $_ar['CreatedDate'] instanceof DateTime ? $_ar['CreatedDate']->format('d M Y') : '';
+                ?>
+                <a href="/carbonfootprint/master/asset_requests.php" class="cfp-notif-item">
+                    <div class="cfp-notif-dot" style="background:#2AABB8;"></div>
+                    <div>
+                        <div class="cfp-notif-name"><?php echo htmlspecialchars($_ar['AssetType'] . ': ' . $_ar['RequestedName']); ?></div>
+                        <div class="cfp-notif-sub">
+                            Scope <?php echo (int)$_ar['ScopeNo']; ?>
+                            <?php if (!empty($_ar['SiteName'])) echo ' · ' . htmlspecialchars($_ar['SiteName']); ?>
+                            <?php if (!empty($_ar['RequesterName'])) echo ' · ' . htmlspecialchars($_ar['RequesterName']); ?>
+                            <?php if ($_arDate) echo ' · ' . $_arDate; ?>
+                        </div>
+                    </div>
+                </a>
+                <?php } ?>
+                <?php if ($_notifAssetReqCount > 5) { ?>
+                <div class="cfp-notif-footer">
+                    <a href="/carbonfootprint/master/asset_requests.php">ดูทั้งหมด <?php echo $_notifAssetReqCount; ?> รายการ →</a>
+                </div>
+                <?php } ?>
+                <?php } ?>
+                </div>
                 <?php } ?>
             </div>
         </div>
 
 
-        <!-- Settings — ซ่อนบน mobile -->
-        <div class="topbar-ic-round topbar-hide-mobile" title="ตั้งค่า">
+        <?php if ($isAdminOrSustain) { ?>
+        <!-- Settings — เฉพาะ Admin/Sustainability Admin — ซ่อนบน mobile -->
+        <div class="topbar-ic-round topbar-hide-mobile" title="ตั้งค่า" onclick="openSettingsModal()" style="cursor:pointer;">
             <i class="bi bi-sliders"></i>
         </div>
+        <?php } ?>
 
         <!-- User avatar — แสดงทุก breakpoint -->
         <div class="dropdown">
@@ -408,6 +530,49 @@ $rNames = array(
     </div>
 </div>
 
+<?php if ($isAdminOrSustain) { ?>
+<!-- ===== MODAL: ตั้งค่า — เฉพาะ Admin/Sustainability Admin ===== -->
+<div class="modal fade" id="modalSettings" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title">
+                    <i class="bi bi-sliders me-2" style="color:rgba(255,255,255,0.7);"></i>ตั้งค่า
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div>
+                        <div style="font-size:0.85rem;font-weight:600;color:var(--cfp-text);">การแจ้งเตือน (in-app)</div>
+                        <div style="font-size:0.72rem;color:var(--cfp-text-muted);">เปิด/ปิดกระดิ่งแจ้งเตือนรออนุมัติ</div>
+                    </div>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="settingNotifEnabled"
+                               style="width:2.4em;height:1.3em;cursor:pointer;" onchange="onSettingsNotifToggle()">
+                    </div>
+                </div>
+                <div class="mb-1">
+                    <label class="form-label" style="font-size:0.8rem;">ความถี่รีเฟรชกระดิ่งอัตโนมัติ</label>
+                    <select id="settingNotifRefresh" class="form-select form-select-sm"
+                            style="font-family:'Prompt',sans-serif;font-size:0.82rem;" onchange="onSettingsRefreshChange()">
+                        <option value="0">ปิด (รีเฟรชเมื่อโหลดหน้าใหม่เท่านั้น)</option>
+                        <option value="1">ทุก 1 นาที</option>
+                        <option value="5">ทุก 5 นาที</option>
+                        <option value="10">ทุก 10 นาที</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-cfp-add" data-bs-dismiss="modal">
+                    <i class="bi bi-check-circle me-1"></i>ปิดหน้าต่าง
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<?php } ?>
+
 <?php if ($isAdmin) { ?>
 <!-- ===== MODAL: Elevation ===== -->
 <div class="modal fade" id="modalElevation" tabindex="-1" data-bs-backdrop="static">
@@ -476,6 +641,66 @@ $rNames = array(
         </div>
     </div>
 </div>
+
+<!-- ===== MODAL: View-as ===== -->
+<div class="modal fade" id="modalViewAs" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:440px;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title">
+                    <i class="bi bi-eye me-2" style="color:rgba(255,255,255,0.7);"></i>View as — ดูแทน User
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:0.82rem;color:var(--cfp-text-muted);margin-bottom:14px;">
+                    เลือก user ที่ต้องการดูแทน — โหมดนี้เป็น <strong>Read-only เท่านั้น</strong> ไม่สามารถบันทึก/แก้ไขข้อมูลในนาม user นั้นได้ ทุกการเข้า-ออกจะถูกบันทึก Audit Log
+                </p>
+                <div class="mb-3">
+                    <label class="form-label" style="font-size:0.8rem;">เลือก User <span class="text-danger">*</span></label>
+                    <input type="hidden" id="viewAsSelectedUserId" value="">
+                    <div class="cfp-viewas-search">
+                        <i class="bi bi-search"></i>
+                        <input type="text" id="viewAsUserSearch" placeholder="พิมพ์ชื่อหรือ username เพื่อค้นหา..."
+                               oninput="filterViewAsUsers(this.value)"
+                               style="font-family:'Prompt',sans-serif;">
+                    </div>
+                    <div class="cfp-viewas-list" id="viewAsUserList">
+                        <div class="cfp-viewas-empty">กำลังโหลดรายชื่อ...</div>
+                    </div>
+                </div>
+                <div style="background:var(--cfp-bg);border-radius:8px;padding:8px 12px;
+                            font-size:0.76rem;color:var(--cfp-text-muted);margin-bottom:12px;
+                            display:flex;align-items:center;gap:6px;border:1px solid var(--cfp-border);">
+                    <i class="bi bi-person-badge" style="color:var(--cfp-primary);"></i>
+                    <span id="viewAsPreview">Admin viewing as ?</span>
+                </div>
+                <div class="mb-1">
+                    <label class="form-label" style="font-size:0.8rem;">
+                        เหตุผลการ View-as <span class="text-danger">*</span>
+                        <span style="color:var(--cfp-text-muted);font-weight:400;">(อย่างน้อย 3 ตัวอักษร)</span>
+                    </label>
+                    <textarea id="viewAsReasonInp" class="form-control" rows="2" maxlength="200"
+                              placeholder="ระบุเหตุผล เช่น ตรวจสอบว่าทำไม user นี้เห็นเมนูไม่ครบ"
+                              style="resize:none;font-size:0.84rem;font-family:'Prompt',sans-serif;"></textarea>
+                    <div style="text-align:right;font-size:0.7rem;color:var(--cfp-text-muted);margin-top:3px;">
+                        <span id="viewAsReasonCount">0</span>/200
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        data-bs-dismiss="modal"
+                        style="font-family:'Prompt',sans-serif;">ยกเลิก</button>
+                <button id="btnStartViewAs" onclick="startViewAs()" disabled
+                        class="btn btn-sm btn-cfp-primary"
+                        style="font-family:'Prompt',sans-serif;opacity:0.5;">
+                    <i class="bi bi-eye"></i> เริ่ม View-as
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 <?php } ?>
 
 <!-- Toast -->
@@ -505,6 +730,25 @@ $rNames = array(
     border-color: var(--cfp-primary);
     box-shadow: 0 0 0 3px rgba(42,171,184,0.12);
 }
+
+/* ===== View-as: searchable grouped user list ===== */
+.cfp-viewas-search { position: relative; margin-bottom: 8px; }
+.cfp-viewas-search i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--cfp-text-muted); font-size: 0.82rem; }
+.cfp-viewas-search input { width: 100%; font-size: 0.82rem; border: 1px solid var(--cfp-border); border-radius: 8px; padding: 7px 10px 7px 30px; background: #fff; color: var(--cfp-text); }
+.cfp-viewas-search input:focus { outline: none; border-color: var(--cfp-primary); box-shadow: 0 0 0 3px rgba(42,171,184,0.12); }
+.cfp-viewas-list { max-height: 230px; overflow-y: auto; border: 1px solid var(--cfp-border); border-radius: 10px; background: var(--cfp-bg); }
+.cfp-viewas-group { position: sticky; top: 0; background: var(--cfp-hover); color: var(--cfp-text-muted); font-size: 0.66rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 5px 12px; border-bottom: 1px solid var(--cfp-border); }
+.cfp-viewas-row { display: flex; align-items: center; gap: 10px; padding: 7px 12px; cursor: pointer; border-bottom: 1px solid var(--cfp-border); }
+.cfp-viewas-row:last-child { border-bottom: none; }
+.cfp-viewas-row:hover { background: var(--cfp-hover); }
+.cfp-viewas-row.selected { background: rgba(42,171,184,0.14); }
+.cfp-viewas-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--cfp-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.62rem; font-weight: 700; flex-shrink: 0; }
+.cfp-viewas-meta { min-width: 0; }
+.cfp-viewas-meta .u-name { font-weight: 600; font-size: 0.78rem; color: var(--cfp-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cfp-viewas-meta .u-sub { font-size: 0.66rem; color: var(--cfp-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cfp-viewas-check { margin-left: auto; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--cfp-border); background: #fff; flex-shrink: 0; }
+.cfp-viewas-row.selected .cfp-viewas-check { background: var(--cfp-primary); border-color: var(--cfp-primary); }
+.cfp-viewas-empty { padding: 16px; text-align: center; font-size: 0.78rem; color: var(--cfp-text-muted); }
 </style>
 
 <script>
@@ -744,6 +988,161 @@ function showElevToast(msg, bg, isSuccess) {
     new bootstrap.Toast(toast, { delay: 3000 }).show();
 }
 
+/* ===== View-as ===== */
+var viewAsUsersLoaded = false;
+
+function openViewAsModal() {
+    document.getElementById('viewAsReasonInp').value = '';
+    document.getElementById('viewAsReasonCount').textContent = '0';
+    document.getElementById('viewAsPreview').textContent = 'Admin viewing as ?';
+    document.getElementById('viewAsSelectedUserId').value = '';
+    document.getElementById('viewAsUserSearch').value = '';
+    document.getElementById('btnStartViewAs').disabled = true;
+    document.getElementById('btnStartViewAs').style.opacity = '0.5';
+    new bootstrap.Modal(document.getElementById('modalViewAs')).show();
+    if (!viewAsUsersLoaded) { loadViewAsUsers(); }
+}
+
+var viewAsUsersData = [];
+
+function loadViewAsUsers() {
+    var list = document.getElementById('viewAsUserList');
+    fetch('/carbonfootprint/admin/view_as_handler.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'list_users' })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success || !data.users.length) {
+            list.innerHTML = '<div class="cfp-viewas-empty">ไม่พบรายชื่อ user</div>';
+            return;
+        }
+        viewAsUsersLoaded = true;
+        viewAsUsersData   = data.users;
+        renderViewAsUserList(data.users);
+    })
+    .catch(function() { list.innerHTML = '<div class="cfp-viewas-empty">เชื่อมต่อ server ไม่ได้</div>'; });
+}
+
+function viewAsInitials(name) {
+    var parts = (name || '').trim().split(' ');
+    if (parts.length >= 2) { return parts[0].charAt(0) + parts[1].charAt(0); }
+    return (name || '').substr(0, 2);
+}
+
+function renderViewAsUserList(users) {
+    var list = document.getElementById('viewAsUserList');
+    if (!users.length) { list.innerHTML = '<div class="cfp-viewas-empty">ไม่พบ user ที่ตรงกับคำค้นหา</div>'; return; }
+    var html = '';
+    var lastRole = null;
+    users.forEach(function(u) {
+        if (u.roleName !== lastRole) {
+            html += '<div class="cfp-viewas-group">' + u.roleName + '</div>';
+            lastRole = u.roleName;
+        }
+        html += '<div class="cfp-viewas-row" data-userid="' + u.userID + '" data-name="' + u.fullName + '" onclick="selectViewAsUser(' + u.userID + ')">'
+              +   '<div class="cfp-viewas-avatar">' + viewAsInitials(u.fullName) + '</div>'
+              +   '<div class="cfp-viewas-meta"><div class="u-name">' + u.fullName + '</div><div class="u-sub">' + u.username + '</div></div>'
+              +   '<span class="cfp-viewas-check"></span>'
+              + '</div>';
+    });
+    list.innerHTML = html;
+    /* คงสถานะ selected ไว้ถ้ามีการเลือกอยู่แล้วก่อนกรอง */
+    var selID = document.getElementById('viewAsSelectedUserId').value;
+    if (selID) {
+        var row = list.querySelector('.cfp-viewas-row[data-userid="' + selID + '"]');
+        if (row) { row.classList.add('selected'); }
+    }
+}
+
+function filterViewAsUsers(query) {
+    query = (query || '').trim().toLowerCase();
+    if (!query) { renderViewAsUserList(viewAsUsersData); return; }
+    var filtered = viewAsUsersData.filter(function(u) {
+        return u.fullName.toLowerCase().indexOf(query) !== -1
+            || u.username.toLowerCase().indexOf(query) !== -1;
+    });
+    renderViewAsUserList(filtered);
+}
+
+function selectViewAsUser(userID) {
+    document.getElementById('viewAsSelectedUserId').value = userID;
+    document.querySelectorAll('.cfp-viewas-row').forEach(function(row) {
+        row.classList.toggle('selected', parseInt(row.dataset.userid) === userID);
+    });
+    var u = viewAsUsersData.find(function(x) { return x.userID === userID; });
+    document.getElementById('viewAsPreview').textContent = u ? ('Admin viewing as ' + u.fullName + ' — ' + u.roleName) : 'Admin viewing as ?';
+    checkViewAsReady();
+}
+
+function checkViewAsReady() {
+    var userID = document.getElementById('viewAsSelectedUserId').value;
+    var reason = (document.getElementById('viewAsReasonInp') || {}).value || '';
+    var btn    = document.getElementById('btnStartViewAs');
+    var ready  = !!userID && reason.trim().length >= 3;
+    btn.disabled      = !ready;
+    btn.style.opacity = ready ? '1' : '0.5';
+}
+
+var viewAsReasonInp = document.getElementById('viewAsReasonInp');
+if (viewAsReasonInp) {
+    viewAsReasonInp.addEventListener('input', function() {
+        document.getElementById('viewAsReasonCount').textContent = this.value.length;
+        checkViewAsReady();
+    });
+}
+
+function startViewAs() {
+    var userID = document.getElementById('viewAsSelectedUserId').value;
+    var reason = document.getElementById('viewAsReasonInp').value.trim();
+    if (!userID || reason === '') { return; }
+    var btn = document.getElementById('btnStartViewAs');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>กำลังเริ่ม...';
+    fetch('/carbonfootprint/admin/view_as_handler.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action:'start', target_user_id: parseInt(userID), reason: reason })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('modalViewAs')).hide();
+            showElevToast('เริ่ม View-as ' + data.user_name + ' แล้ว', '#D97706', true);
+            setTimeout(function() { window.location.reload(); }, 1000);
+        } else {
+            showElevToast(data.msg || 'เกิดข้อผิดพลาด', '#E05050', false);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-eye"></i> เริ่ม View-as';
+        }
+    })
+    .catch(function() {
+        showElevToast('เชื่อมต่อ server ไม่ได้', '#E05050', false);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-eye"></i> เริ่ม View-as';
+    });
+}
+
+function endViewAs() {
+    if (!confirm('ยืนยันการสิ้นสุด View-as?')) { return; }
+    fetch('/carbonfootprint/admin/view_as_handler.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'end' })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showElevToast('สิ้นสุด View-as แล้ว กลับสู่ Admin Mode', '#2AABB8', true);
+            setTimeout(function() { window.location.reload(); }, 1000);
+        } else {
+            showElevToast(data.msg || 'เกิดข้อผิดพลาด', '#E05050', false);
+        }
+    })
+    .catch(function() { showElevToast('เชื่อมต่อ server ไม่ได้', '#E05050', false); });
+}
+
 
 /* ===== Bell Notification Toggle ===== */
 (function() {
@@ -764,6 +1163,176 @@ function showElevToast(msg, bg, isSuccess) {
         if (e.key === 'Escape') { drop.classList.remove('show'); }
     });
 })();
+
+/* ===== ตั้งค่า: แจ้งเตือน (เปิด/ปิด + ความถี่รีเฟรช) — เก็บเป็น localStorage ต่อเบราว์เซอร์ ===== */
+var CFP_NOTIF_ENABLED_KEY = 'cfp_notif_enabled';
+var CFP_NOTIF_REFRESH_KEY = 'cfp_notif_refresh_min';
+var cfpNotifPollTimer = null;
+
+function cfpNotifEnabled() {
+    var v = localStorage.getItem(CFP_NOTIF_ENABLED_KEY);
+    return v === null ? true : v === '1';
+}
+function cfpNotifRefreshMin() {
+    var v = parseInt(localStorage.getItem(CFP_NOTIF_REFRESH_KEY) || '0');
+    return isNaN(v) ? 0 : v;
+}
+
+function openSettingsModal() {
+    document.getElementById('settingNotifEnabled').checked = cfpNotifEnabled();
+    document.getElementById('settingNotifRefresh').value = String(cfpNotifRefreshMin());
+    new bootstrap.Modal(document.getElementById('modalSettings')).show();
+}
+
+function onSettingsNotifToggle() {
+    var on = document.getElementById('settingNotifEnabled').checked;
+    localStorage.setItem(CFP_NOTIF_ENABLED_KEY, on ? '1' : '0');
+    applyNotifSettings();
+}
+
+function onSettingsRefreshChange() {
+    var min = document.getElementById('settingNotifRefresh').value;
+    localStorage.setItem(CFP_NOTIF_REFRESH_KEY, min);
+    applyNotifSettings();
+}
+
+function applyNotifSettings() {
+    var wrap = document.getElementById('cfpBellWrap');
+    if (!wrap) { return; }
+    var enabled = cfpNotifEnabled();
+    wrap.style.display = enabled ? '' : 'none';
+
+    if (cfpNotifPollTimer) { clearInterval(cfpNotifPollTimer); cfpNotifPollTimer = null; }
+    var min = cfpNotifRefreshMin();
+    if (enabled && min > 0) {
+        cfpNotifPollTimer = setInterval(cfpPollNotifications, min * 60 * 1000);
+    }
+}
+
+function cfpPollNotifications() {
+    fetch('/carbonfootprint/includes/notif_check.php')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) { return; }
+            var badge   = document.getElementById('cfpNotifBadge');
+            var hdBadge = document.getElementById('cfpNotifHdBadge');
+            var icon    = document.getElementById('cfpBellIcon');
+            var body    = document.getElementById('cfpNotifBody');
+            var count   = data.count;              /* รวมทุกประเภท ใช้กับ badge หลัก */
+            var approvalCount = data.approvalCount; /* รออนุมัติล้วนๆ ใช้กับ section แรก */
+
+            if (count > 0) {
+                badge.style.display = ''; badge.textContent = count > 99 ? '99+' : count;
+                icon.className = 'bi bi-bell-fill cfp-bell-animate';
+            } else {
+                badge.style.display = 'none';
+                icon.className = 'bi bi-bell';
+            }
+
+            /* ── Section รออนุมัติ — element อาจไม่มีถ้าเป็น Data Entry (role 1) ── */
+            if (hdBadge && body) {
+                if (approvalCount > 0) {
+                    hdBadge.style.display = ''; hdBadge.textContent = approvalCount + ' รายการ';
+                } else {
+                    hdBadge.style.display = 'none';
+                }
+
+                if (!data.items.length) {
+                    body.innerHTML = '<div class="cfp-notif-empty"><i class="bi bi-inbox" style="font-size:1.4rem;display:block;margin-bottom:4px;"></i>ไม่มีรายการรออนุมัติ</div>';
+                } else {
+                    var html = '';
+                    data.items.forEach(function(it) {
+                        html += '<a href="/carbonfootprint/workflow/review.php" class="cfp-notif-item">'
+                              +   '<div class="cfp-notif-dot" style="background:' + it.scopeColor + ';"></div>'
+                              +   '<div>'
+                              +     '<div class="cfp-notif-name">' + it.itemName + '</div>'
+                              +     '<div class="cfp-notif-sub">Scope ' + it.scopeNo
+                              +       (it.siteName ? ' · ' + it.siteName : '')
+                              +       (it.submitterName ? ' · ' + it.submitterName : '')
+                              +       (it.submittedDate ? ' · ' + it.submittedDate : '')
+                              +     '</div>'
+                              +   '</div>'
+                              + '</a>';
+                    });
+                    if (approvalCount > 5) {
+                        html += '<div class="cfp-notif-footer"><a href="/carbonfootprint/workflow/review.php">ดูทั้งหมด ' + approvalCount + ' รายการ →</a></div>';
+                    }
+                    body.innerHTML = html;
+                }
+            }
+
+            /* ── Data Entry: ทรัพย์สินที่ Admin ทำเสร็จแล้ว (element มีเฉพาะ role 1) ── */
+            var frHdBadge = document.getElementById('cfpFulfilledHdBadge');
+            var frBody    = document.getElementById('cfpFulfilledBody');
+            if (frHdBadge && frBody) {
+                var frCount = data.fulfilledCount || 0;
+                if (frCount > 0) {
+                    frHdBadge.style.display = ''; frHdBadge.textContent = frCount + ' รายการ';
+                } else {
+                    frHdBadge.style.display = 'none';
+                }
+                if (!data.fulfilledItems.length) {
+                    frBody.innerHTML = '<div class="cfp-notif-empty"><i class="bi bi-inbox" style="font-size:1.4rem;display:block;margin-bottom:4px;"></i>ยังไม่มีคำขอที่ทำเสร็จ</div>';
+                } else {
+                    var frHtml = '';
+                    data.fulfilledItems.forEach(function(fr) {
+                        frHtml += '<a href="/carbonfootprint/data_entry/my_asset_requests.php" class="cfp-notif-item">'
+                                +   '<div class="cfp-notif-dot" style="background:#43A047;"></div>'
+                                +   '<div>'
+                                +     '<div class="cfp-notif-name">' + fr.assetType + ': ' + fr.requestedName + '</div>'
+                                +     '<div class="cfp-notif-sub">Scope ' + fr.scopeNo
+                                +       (fr.siteName ? ' · ' + fr.siteName : '')
+                                +       (fr.closedByName ? ' · โดย ' + fr.closedByName : '')
+                                +       (fr.closedDate ? ' · ' + fr.closedDate : '')
+                                +     '</div>'
+                                +   '</div>'
+                                + '</a>';
+                    });
+                    if (frCount > 5) {
+                        frHtml += '<div class="cfp-notif-footer"><a href="/carbonfootprint/data_entry/my_asset_requests.php">ดูทั้งหมด ' + frCount + ' รายการ →</a></div>';
+                    }
+                    frBody.innerHTML = frHtml;
+                }
+            }
+
+            /* ── Section 2: คำขอเพิ่มทรัพย์สินใหม่ — มีเฉพาะ Admin เท่านั้น (element อาจไม่มีถ้าไม่ใช่ Admin) ── */
+            var arHdBadge = document.getElementById('cfpAssetReqHdBadge');
+            var arBody    = document.getElementById('cfpAssetReqBody');
+            if (arHdBadge && arBody) {
+                var arCount = data.assetRequestCount || 0;
+                if (arCount > 0) {
+                    arHdBadge.style.display = ''; arHdBadge.textContent = arCount + ' รายการ';
+                } else {
+                    arHdBadge.style.display = 'none';
+                }
+                if (!data.assetRequestItems.length) {
+                    arBody.innerHTML = '<div class="cfp-notif-empty"><i class="bi bi-inbox" style="font-size:1.4rem;display:block;margin-bottom:4px;"></i>ไม่มีคำขอค้างอยู่</div>';
+                } else {
+                    var arHtml = '';
+                    data.assetRequestItems.forEach(function(ar) {
+                        arHtml += '<a href="/carbonfootprint/master/asset_requests.php" class="cfp-notif-item">'
+                                +   '<div class="cfp-notif-dot" style="background:#2AABB8;"></div>'
+                                +   '<div>'
+                                +     '<div class="cfp-notif-name">' + ar.assetType + ': ' + ar.requestedName + '</div>'
+                                +     '<div class="cfp-notif-sub">Scope ' + ar.scopeNo
+                                +       (ar.siteName ? ' · ' + ar.siteName : '')
+                                +       (ar.requesterName ? ' · ' + ar.requesterName : '')
+                                +       (ar.createdDate ? ' · ' + ar.createdDate : '')
+                                +     '</div>'
+                                +   '</div>'
+                                + '</a>';
+                    });
+                    if (arCount > 5) {
+                        arHtml += '<div class="cfp-notif-footer"><a href="/carbonfootprint/master/asset_requests.php">ดูทั้งหมด ' + arCount + ' รายการ →</a></div>';
+                    }
+                    arBody.innerHTML = arHtml;
+                }
+            }
+        })
+        .catch(function() { /* เงียบไว้ ไม่รบกวนผู้ใช้ถ้า poll พลาดรอบเดียว */ });
+}
+
+applyNotifSettings();
 
 /* ── set body.cfp-mobile ตาม window.innerWidth จริง (ไม่พึ่ง media query) ── */
 (function() {

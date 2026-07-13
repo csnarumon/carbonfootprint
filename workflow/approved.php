@@ -4,7 +4,7 @@ require_once '../includes/auth_check.php';
 require_once '../config/db.php';
 requireRole(array(2, 3, 4, 5));
 $conn   = getConnection();
-$userID = (int)$_SESSION['user_id'];
+$userID = getEffectiveUserID();
 $roleID = getEffectiveRole();
 
 $toastMsg = ''; $toastType = 'success';

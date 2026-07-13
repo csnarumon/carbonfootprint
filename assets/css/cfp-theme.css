@@ -447,6 +447,34 @@ a:hover { color: var(--cfp-primary-dark); }
     font-weight: 600 !important;
 }
 
+/* ----- 6b. จัดการสิทธิ์/รายการกิจกรรม (admin-light) — Pastel Lavender อ่อนกว่า ----- */
+.cfp-sidebar .nav-section-collapsible.admin-light .nav-section-header {
+    background: linear-gradient(135deg, #ece3f9, #d8c8ef) !important;
+    box-shadow: 0 2px 6px rgba(80, 50, 180, .10) !important;
+}
+.cfp-sidebar .nav-section-collapsible.admin-light .nav-section-title,
+.cfp-sidebar .nav-section-collapsible.admin-light .nav-section-header > i,
+.cfp-sidebar .nav-section-collapsible.admin-light .collapse-icon {
+    color: #4A3888 !important;
+}
+.cfp-sidebar .nav-section-collapsible.admin-light .nav-section-inner .nav-link {
+    color: #5A4898 !important;
+}
+.cfp-sidebar .nav-section-collapsible.admin-light .nav-section-inner .nav-link i {
+    color: #9888D8 !important;
+}
+.cfp-sidebar .nav-section-collapsible.admin-light .nav-section-inner .nav-link:hover {
+    background: rgba(230, 219, 248, .35) !important;
+    color: #2A1860 !important;
+    border-left-color: #9888D8 !important;
+}
+.cfp-sidebar .nav-section-collapsible.admin-light .nav-section-inner .nav-link.active {
+    background: rgba(230, 219, 248, .50) !important;
+    color: #2A1860 !important;
+    border-left-color: #9888D8 !important;
+    font-weight: 600 !important;
+}
+
 /* ----- 7. ข้อมูลอ้างอิง (reference) — Pastel Pink ----- */
 .cfp-sidebar .nav-section-collapsible.reference .nav-section-header {
     background: linear-gradient(135deg, #edd4e2, #e7c2ce) !important;
@@ -500,6 +528,34 @@ a:hover { color: var(--cfp-primary-dark); }
     background: rgba(180, 220, 235, .50) !important;
     color: #0A3848 !important;
     border-left-color: #3A8A9A !important;
+    font-weight: 600 !important;
+}
+
+/* ----- 8b. คำขอเพิ่มทรัพย์สิน (assetreq) — Pastel Sky Blue (โทนฟ้า แยกจาก entry ที่เป็นฟ้าอมเขียว) ----- */
+.cfp-sidebar .nav-section-collapsible.assetreq .nav-section-header {
+    background: linear-gradient(135deg, #e3edfc, #c0d8f5) !important;
+    box-shadow: 0 2px 6px rgba(40, 90, 180, .12) !important;
+}
+.cfp-sidebar .nav-section-collapsible.assetreq .nav-section-title,
+.cfp-sidebar .nav-section-collapsible.assetreq .nav-section-header > i,
+.cfp-sidebar .nav-section-collapsible.assetreq .collapse-icon {
+    color: #1A3A70 !important;
+}
+.cfp-sidebar .nav-section-collapsible.assetreq .nav-section-inner .nav-link {
+    color: #2A4A80 !important;
+}
+.cfp-sidebar .nav-section-collapsible.assetreq .nav-section-inner .nav-link i {
+    color: #5888D0 !important;
+}
+.cfp-sidebar .nav-section-collapsible.assetreq .nav-section-inner .nav-link:hover {
+    background: rgba(192, 216, 245, .35) !important;
+    color: #0A2858 !important;
+    border-left-color: #5888D0 !important;
+}
+.cfp-sidebar .nav-section-collapsible.assetreq .nav-section-inner .nav-link.active {
+    background: rgba(192, 216, 245, .50) !important;
+    color: #0A2858 !important;
+    border-left-color: #5888D0 !important;
     font-weight: 600 !important;
 }
 

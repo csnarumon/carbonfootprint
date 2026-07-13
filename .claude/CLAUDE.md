@@ -18,6 +18,22 @@
 
 ---
 
+## Role Hierarchy
+
+| Role ID | ชื่อ | หมายเหตุ |
+|---------|------|----------|
+| 1 | Data Entry | บันทึกข้อมูล |
+| 2 | Reviewer | ตรวจสอบเบื้องต้น (บาง Site) |
+| 3 | Approver | อนุมัติข้อมูล CFP |
+| 4 | **Admin (IT)** | **สิทธิ์สูงสุดของระบบ** — ควบคุม user/permission, View-as (สวมสิทธิ์ user อื่น แบบ read-only), Elevate (ยกระดับตัวเองชั่วคราวเป็น role อื่น) |
+| 5 | Sustainability Admin | สิทธิ์สูงสุด **เชิงธุรกิจ** — อนุมัติ/unlock ข้อมูล CFP ได้ทุก Scope/Site เหมือน Admin แต่ไม่มี View-as/Elevate |
+| 6 | Viewer | ดูอย่างเดียว |
+
+- Role 4 และ 5 ผ่าน `requireRole()` ได้ทุกหน้าเสมอ (ดู `includes/auth_check.php`)
+- **Admin (Role 4) คือสิทธิ์สูงสุดจริงของระบบ** ไม่ใช่ Sustainability Admin — อย่าสลับความเข้าใจสองอันนี้
+
+---
+
 ## Coding Rules
 
 - PHP 8.3+ syntax แต่เขียนแบบ **procedural** (ทีมเดิมอ่านง่าย)

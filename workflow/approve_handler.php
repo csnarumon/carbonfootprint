@@ -19,7 +19,7 @@ $conn    = getConnection();
 $userID  = (int)$_SESSION['user_id'];
 $roleID  = getActualRole();
 $effRole = getEffectiveRole();
-$isSuperAdmin = isSuperAdmin();
+$isSuperAdmin = isSuperAdmin() && !isViewingAs();
 
 function jsonOut($s, $m, $extra = array()) {
     echo json_encode(array_merge(array('success' => $s, 'msg' => $m), $extra), JSON_UNESCAPED_UNICODE);
@@ -217,8 +217,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $csrf     = $body['csrf_token']    ?? '';
 
     if (!hash_equals($_SESSION['csrf_token'], $csrf)) { jsonOut(false, 'CSRF ไม่ถูกต้อง'); }
+    if (isViewingAs()) { jsonOut(false, 'อยู่ในโหมด View-as (Read-only) — ดำเนินการไม่ได้'); }
     if ($headerID <= 0) { jsonOut(false, 'ไม่พบรหัส Header'); }
-    if (!in_array($action, array('approve', 'reject', 'unlock'))) { jsonOut(false, 'Action ไม่ถูกต้อง'); }
+    if (!in_array($action, array('approve', 'reject', 'unlock', 'mark_reviewed'))) { jsonOut(false, 'Action ไม่ถูกต้อง'); }
     if ($action === 'reject' && empty($reason)) { jsonOut(false, 'กรุณาระบุเหตุผลที่ส่งกลับ'); }
 
     /* ── unlock ต้องเป็น Admin/SustainAdmin เท่านั้น ── */
@@ -260,6 +261,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+    if ($action === 'mark_reviewed' && $curStatus !== 1) {
+        jsonOut(false, 'ข้อมูลไม่ได้อยู่ในสถานะ "รออนุมัติ"');
+    }
 
     /* ── ดำเนินการ ── */
     if ($action === 'approve') {
@@ -289,6 +293,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         logAction($conn, 'UNLOCK', 'CFP_MonthlyHeader', $headerID,
             $h['SiteID'], $h['YearMonth'], $h['Scope'], 'Admin Unlock: ' . $reason);
         jsonOut(true, 'Unlock เรียบร้อย — ข้อมูลกลับสู่สถานะ Draft');
+
+    } elseif ($action === 'mark_reviewed') {
+        $res = sqlsrv_query($conn,
+            "UPDATE CFP_MonthlyHeader SET ReviewedBy=?, ReviewedDate=GETDATE() WHERE HeaderID=?",
+            array($userID, $headerID));
+        if (!$res) { $e = sqlsrv_errors(); jsonOut(false, 'บันทึกไม่สำเร็จ: ' . ($e[0]['message'] ?? '')); }
+        logAction($conn, 'REVIEW', 'CFP_MonthlyHeader', $headerID,
+            $h['SiteID'], $h['YearMonth'], $h['Scope'], 'ทำเครื่องหมายตรวจแล้ว HeaderID=' . $headerID);
+        jsonOut(true, 'บันทึกว่าตรวจแล้วเรียบร้อย');
     }
 }
 

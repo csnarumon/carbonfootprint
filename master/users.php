@@ -623,7 +623,7 @@ function getRoleBadge($roleID, $roleName) {
                     <td class="text-center">
                       <button class="btn btn-outline-primary btn-action"
                               title="กำหนดสิทธิ์ Scope"
-                              onclick="openScopeModal(<?php echo $uid; ?>, '<?php echo htmlspecialchars(addslashes($u['FullName'])); ?>')">
+                              onclick="openScopeModal(<?php echo $uid; ?>, '<?php echo htmlspecialchars(addslashes($u['FullName'])); ?>', <?php echo (int)($u['SiteID'] ?? 0); ?>)">
                         <i class="bi bi-shield-check"></i>
                       </button>
                     </td>
@@ -1040,6 +1040,13 @@ $scope3Categories = array(
     14 => 'Cat.14 — แฟรนไชส์ (Franchises)',
     15 => 'Cat.15 — การลงทุน (Investments)',
 );
+
+/* Category ที่องค์กรปิดใช้งาน — ดูตั้งค่าได้ที่ master/scope3category.php */
+$resDisCat = sqlsrv_query($conn, "SELECT CategoryNo FROM CFP_Scope3CategoryDisabled");
+$disabledCats = array();
+if ($resDisCat) {
+    while ($rDis = sqlsrv_fetch_array($resDisCat, SQLSRV_FETCH_ASSOC)) { $disabledCats[] = (int)$rDis['CategoryNo']; }
+}
 ?>
 <div class="modal fade" id="modalScope" tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog modal-lg">
@@ -1090,14 +1097,17 @@ $scope3Categories = array(
               </div>
             </div>
             <div class="row g-1" id="catCheckboxes">
-              <?php foreach ($scope3Categories as $catNo => $catLabel) { ?>
+              <?php foreach ($scope3Categories as $catNo => $catLabel) {
+                $isCatDisabled = in_array($catNo, $disabledCats);
+              ?>
               <div class="col-6">
-                <div class="form-check mb-0" style="font-size:0.78rem;">
+                <div class="form-check mb-0" style="font-size:0.78rem;<?php echo $isCatDisabled ? 'opacity:.45;' : ''; ?>">
                   <input class="form-check-input cat3-check" type="checkbox"
                          id="cat3_<?php echo $catNo; ?>"
-                         value="<?php echo $catNo; ?>">
+                         value="<?php echo $catNo; ?>"
+                         <?php echo $isCatDisabled ? 'disabled title="ไม่ได้ใช้งานในองค์กรนี้"' : ''; ?>>
                   <label class="form-check-label" for="cat3_<?php echo $catNo; ?>"
-                         style="font-family:'Prompt',sans-serif;cursor:pointer;">
+                         style="font-family:'Prompt',sans-serif;cursor:<?php echo $isCatDisabled ? 'not-allowed' : 'pointer'; ?>;">
                     <?php echo htmlspecialchars($catLabel); ?>
                   </label>
                 </div>
@@ -1110,7 +1120,6 @@ $scope3Categories = array(
             <div style="font-size:0.78rem;color:var(--cfp-text-mid);margin:10px 0 4px;">Site</div>
             <select class="form-select form-select-sm" id="siteScope<?php echo $sNo; ?>"
                     style="font-family:'Prompt',sans-serif;">
-              <option value="">— ทุก Site —</option>
               <?php foreach ($sites as $s) { ?>
               <option value="<?php echo $s['SiteID']; ?>">
                 <?php echo htmlspecialchars($s['SiteName']); ?>
@@ -1521,13 +1530,13 @@ var scopeAccessData = <?php
 
 var currentScopeUserID = 0;
 
-function openScopeModal(userID, userName) {
+function openScopeModal(userID, userName, defaultSiteID) {
     currentScopeUserID = userID;
     document.getElementById('scopeModalName').textContent = userName;
-    /* reset */
+    /* reset — default Site ตามโครงสร้างองค์กรของ user คนนั้น */
     [1,2,3].forEach(function(sNo) {
         document.getElementById('chkScope'    + sNo).checked = false;
-        document.getElementById('siteScope'   + sNo).value   = '';
+        document.getElementById('siteScope'   + sNo).value   = defaultSiteID || '';
         document.getElementById('scopeDetail' + sNo).style.display = 'none';
     });
     /* reset checkbox cat3 */
@@ -1539,7 +1548,7 @@ function openScopeModal(userID, userName) {
         var sc = uData[sNo];
         if (sc.active) {
             document.getElementById('chkScope'    + sNo).checked = true;
-            document.getElementById('siteScope'   + sNo).value   = sc.siteID || '';
+            document.getElementById('siteScope'   + sNo).value   = sc.siteID || defaultSiteID || '';
             document.getElementById('scopeDetail' + sNo).style.display = 'block';
             /* โหลด cat3 checkbox */
             if (parseInt(sNo) === 3 && sc.categoryIDs) {
@@ -1566,7 +1575,7 @@ function toggleScopeDetail(sNo) {
 }
 
 function selectAllCat(checked) {
-    document.querySelectorAll('.cat3-check').forEach(function(c) { c.checked = checked; });
+    document.querySelectorAll('.cat3-check').forEach(function(c) { if (!c.disabled) { c.checked = checked; } });
 }
 function saveScopeAccess() {
     var scopes = [];

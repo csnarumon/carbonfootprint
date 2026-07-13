@@ -11,10 +11,11 @@ require_once '../config/db.php';
 requireRole(array(1, 2, 3, 4, 5, 6));
 
 $conn      = getConnection();
-$userID    = (int)$_SESSION['user_id'];
+/* ── ใช้ Effective UserID เสมอ — ถ้า Admin กำลัง View-as จะเห็น/กรองข้อมูลตรงกับ user ที่สวมอยู่จริง ── */
+$userID    = getEffectiveUserID();
 
 /* ── Auto-fill ผู้รับผิดชอบข้อมูล — FullName เอาจาก session ตรงๆ (ไม่ query ซ้ำ) ── */
-$myFullName = $_SESSION['fullname'] ?? '';
+$myFullName = isViewingAs() ? ($_SESSION['view_as_name'] ?? '') : ($_SESSION['fullname'] ?? '');
 $myDivID    = 0;
 $myDeptFallback = $_SESSION['dept'] ?? ''; /* ฟิลด์เก่า ใช้ fallback ถ้าไม่มี DivisionID */
 
@@ -27,8 +28,11 @@ if ($resMe) {
 $myDeptID = $myDivID; /* ตัวแปรใช้ร่วมกับส่วน render ด้านล่าง (ชื่อเดิม myDeptID) */
 $roleID    = getActualRole();
 $effRole   = getEffectiveRole();
-$isSuperAdmin = isSuperAdmin();          /* role 4 หรือ 5 */
-$canEdit   = ($isSuperAdmin || $effRole === 1);
+/* View-as ต้อง bypass ไม่ได้ — บังคับดูตามสิทธิ์จริงของ user ที่สวมอยู่เสมอ (ไม่ใช่สิทธิ์ Admin ตัวจริง) */
+$isSuperAdmin = isSuperAdmin() && !isViewingAs();
+/* Admin/SustainAdmin เข้าตรงๆ (ไม่ผ่าน Elevate เป็น Data Entry) = ดูได้อย่างเดียว
+   ให้กรอกข้อมูลจริงต้อง Elevate Role เป็น Data Entry หรือ View-as เท่านั้น */
+$canEdit   = ($effRole === 1) && !isViewingAs();
 
 /* ===== filter เดือน/ปี + Site ===== */
 $filterYM   = $_GET['ym']     ?? date('Ym');
@@ -37,31 +41,7 @@ $filterYear  = (int)substr($filterYM, 0, 4);
 $filterMonth = (int)substr($filterYM, 4, 2);
 $ymLabel     = $filterYear . '-' . str_pad($filterMonth, 2, '0', STR_PAD_LEFT);
 
-/* ===== ดึง Site dropdown ===== */
-$resSite = sqlsrv_query($conn, "SELECT SiteID,SiteName,SiteCode FROM CFP_Site WHERE IsActive=1 ORDER BY CASE WHEN SiteName LIKE N'%สำนักงานใหญ่%' THEN 0 ELSE 1 END, SiteName");
-$sites   = array(); while ($r = sqlsrv_fetch_array($resSite, SQLSRV_FETCH_ASSOC)) { $sites[] = $r; }
-if (!$filterSite && !empty($sites)) { $filterSite = (int)$sites[0]['SiteID']; }
-
-/* ดึงฝ่าย/หน่วยงานทั้งหมด (HQ+Factory) มาพร้อมกัน ไม่กรองตาม Site — เผื่อกรณีคนอื่นคีย์แทน
-   แยกกลุ่มด้วย optgroup ตอน render แทนการทำ 2 dropdown แยก (ลด JS logic ที่ต้องเคลียร์ค่ากันเอง) */
-$currentSiteCode = '';
-foreach ($sites as $s) { if ($s['SiteID'] == $filterSite) { $currentSiteCode = $s['SiteCode']; break; } }
-$deptListHQ = array();
-$deptListFactory = array();
-$resDeptHQ = sqlsrv_query($conn,
-    "SELECT DivisionID AS DeptID, DivisionName AS DeptName FROM CFP_Division
-     WHERE IsActive=1 AND DivisionType='HQ' ORDER BY SortOrder, DivisionName");
-if ($resDeptHQ) { while ($rD = sqlsrv_fetch_array($resDeptHQ, SQLSRV_FETCH_ASSOC)) { $deptListHQ[] = $rD; } }
-$resDeptFa = sqlsrv_query($conn,
-    "SELECT sc.SectionID AS DeptID, sc.SectionName AS DeptName
-     FROM CFP_Section sc
-     JOIN CFP_Department dp ON dp.DeptID = sc.DeptID
-     JOIN CFP_Division dv ON dv.DivisionID = dp.DivisionID
-     WHERE sc.IsActive=1 AND dv.DivisionType='Factory' AND dv.SiteID=?
-     ORDER BY sc.SectionName", array($filterSite));
-if ($resDeptFa) { while ($rD = sqlsrv_fetch_array($resDeptFa, SQLSRV_FETCH_ASSOC)) { $deptListFactory[] = $rD; } }
-
-/* ===== ดึงสิทธิ์ Data Entry (Scope) ===== */
+/* ===== ดึงสิทธิ์ Data Entry (Scope) — ต้องทำก่อนดึง Site dropdown เพื่อกรอง Site ที่ไม่มีสิทธิ์ออก ===== */
 $allowedCats  = null; /* null = ทุก category */
 $allowedSites = null; /* null = ทุก Site */
 if (!$isSuperAdmin && $effRole === 1) {
@@ -83,6 +63,43 @@ if (!$isSuperAdmin && $effRole === 1) {
         }
     }
 }
+
+/* ===== ดึง Site dropdown — กรองตาม $allowedSites ถ้ามีสิทธิ์จำกัด ===== */
+$sqlSite = "SELECT SiteID,SiteName,SiteCode FROM CFP_Site WHERE IsActive=1";
+$paramSite = array();
+if ($allowedSites !== null) {
+    if (empty($allowedSites)) {
+        $sqlSite .= " AND 1=0";
+    } else {
+        $ph = implode(',', array_fill(0, count($allowedSites), '?'));
+        $sqlSite .= " AND SiteID IN ($ph)";
+        $paramSite = $allowedSites;
+    }
+}
+$sqlSite .= " ORDER BY CASE WHEN SiteName LIKE N'%สำนักงานใหญ่%' THEN 0 ELSE 1 END, SiteName";
+$resSite = sqlsrv_query($conn, $sqlSite, $paramSite);
+$sites   = array(); while ($r = sqlsrv_fetch_array($resSite, SQLSRV_FETCH_ASSOC)) { $sites[] = $r; }
+if ($allowedSites !== null && $filterSite && !in_array($filterSite, $allowedSites)) { $filterSite = 0; }
+if (!$filterSite && !empty($sites)) { $filterSite = (int)$sites[0]['SiteID']; }
+
+/* ดึงฝ่าย/หน่วยงานทั้งหมด (HQ+Factory) มาพร้อมกัน ไม่กรองตาม Site — เผื่อกรณีคนอื่นคีย์แทน
+   แยกกลุ่มด้วย optgroup ตอน render แทนการทำ 2 dropdown แยก (ลด JS logic ที่ต้องเคลียร์ค่ากันเอง) */
+$currentSiteCode = '';
+foreach ($sites as $s) { if ($s['SiteID'] == $filterSite) { $currentSiteCode = $s['SiteCode']; break; } }
+$deptListHQ = array();
+$deptListFactory = array();
+$resDeptHQ = sqlsrv_query($conn,
+    "SELECT DivisionID AS DeptID, DivisionName AS DeptName FROM CFP_Division
+     WHERE IsActive=1 AND DivisionType='HQ' ORDER BY SortOrder, DivisionName");
+if ($resDeptHQ) { while ($rD = sqlsrv_fetch_array($resDeptHQ, SQLSRV_FETCH_ASSOC)) { $deptListHQ[] = $rD; } }
+$resDeptFa = sqlsrv_query($conn,
+    "SELECT sc.SectionID AS DeptID, sc.SectionName AS DeptName
+     FROM CFP_Section sc
+     JOIN CFP_Department dp ON dp.DeptID = sc.DeptID
+     JOIN CFP_Division dv ON dv.DivisionID = dp.DivisionID
+     WHERE sc.IsActive=1 AND dv.DivisionType='Factory' AND dv.SiteID=?
+     ORDER BY sc.SectionName", array($filterSite));
+if ($resDeptFa) { while ($rD = sqlsrv_fetch_array($resDeptFa, SQLSRV_FETCH_ASSOC)) { $deptListFactory[] = $rD; } }
 
 /* ===== ดึง ActivityItem Scope 1 ===== */
 /* กรอง Item ตาม: ScopeNo + Site (CFP_ActivityItemSite) + สิทธิ์ Category */
@@ -204,9 +221,9 @@ foreach ($assetMap[3] ?? array() as $a) {
 
 /* ลิงก์ไปหน้าทะเบียนทรัพย์สิน ใช้ตอนแสดง empty-state (ยังไม่มีทรัพย์สินให้เลือก) */
 $assetPageMap = array(
-    1 => array('url' => '/carbonfootprint/master/equipment.php',   'label' => 'ทะเบียนเครื่องจักร'),
-    2 => array('url' => '/carbonfootprint/master/vehicle.php',     'label' => 'ทะเบียนยานพาหนะ'),
-    3 => array('url' => '/carbonfootprint/master/refrigerant.php', 'label' => 'ทะเบียนอุปกรณ์ทำความเย็น'),
+    1 => array('url' => '/carbonfootprint/master/equipment.php',   'label' => 'ทะเบียนเครื่องจักร',        'type' => 'Equipment',   'typeLabel' => 'เครื่องจักร'),
+    2 => array('url' => '/carbonfootprint/master/vehicle.php',     'label' => 'ทะเบียนยานพาหนะ',          'type' => 'Vehicle',     'typeLabel' => 'ยานพาหนะ'),
+    3 => array('url' => '/carbonfootprint/master/refrigerant.php', 'label' => 'ทะเบียนอุปกรณ์ทำความเย็น',  'type' => 'Refrigerant', 'typeLabel' => 'อุปกรณ์ทำความเย็น'),
 );
 
 /* DEBUG ชั่วคราว: แสดงจำนวนทรัพย์สินที่ดึงได้ต่อ CAT บนหน้าเว็บ (Admin เห็นเท่านั้น) — ลบออกทีหลังเมื่อยืนยันว่าทำงานถูกต้อง */
@@ -551,7 +568,7 @@ body { font-family:'Prompt',sans-serif; }
   </div>
   <?php if ($canEdit) { ?>
   <div class="fbar-r">
-    <?php if ($hdrID > 0 && $hdrStatus === 0) { ?>
+    <?php if ($hdrID > 0 && $hdrStatus === 0 && $filledItems > 0) { ?>
     <button class="btn btn-sm btn-outline-danger font-prompt" onclick="confirmCancelDraft()" style="font-size:0.8rem;">
       <i class="bi bi-trash me-1"></i>ยกเลิก Draft
     </button>
@@ -673,11 +690,21 @@ body { font-family:'Prompt',sans-serif; }
                 + เพิ่ม<?php echo htmlspecialchars($apInfo['label']); ?>
               </a>
               <?php } ?>
+              <?php if ($canEdit && $apInfo) { ?>
+              <br><a href="#" onclick="requestAsset(1,'<?php echo $apInfo['type']; ?>','<?php echo htmlspecialchars($apInfo['typeLabel']); ?>');return false;" style="font-size:0.68rem;color:var(--cfp-primary);">
+                <i class="bi bi-plus-circle"></i> ขอเพิ่มทรัพย์สินใหม่
+              </a>
+              <?php } ?>
               <?php } else { ?>
               <span style="font-size:0.72rem;color:var(--cfp-text-muted);">ไม่ได้ระบุทรัพย์สิน</span>
               <?php if ($isSuperAdmin && $apInfo) { ?>
               <br><a href="<?php echo $apInfo['url']; ?>" target="_blank" style="font-size:0.68rem;color:var(--cfp-text-muted);">
                 + เพิ่ม<?php echo htmlspecialchars($apInfo['label']); ?>
+              </a>
+              <?php } ?>
+              <?php if ($canEdit && $apInfo) { ?>
+              <br><a href="#" onclick="requestAsset(1,'<?php echo $apInfo['type']; ?>','<?php echo htmlspecialchars($apInfo['typeLabel']); ?>');return false;" style="font-size:0.68rem;color:var(--cfp-primary);">
+                <i class="bi bi-plus-circle"></i> ขอเพิ่มทรัพย์สินใหม่
               </a>
               <?php } ?>
               <?php } ?>
@@ -982,7 +1009,7 @@ body { font-family:'Prompt',sans-serif; }
       </div>
       <?php if ($canEdit) { ?>
       <div class="desktop-only d-flex gap-2">
-        <?php if ($hdrID > 0 && $hdrStatus === 0) { ?>
+        <?php if ($hdrID > 0 && $hdrStatus === 0 && $filledItems > 0) { ?>
         <button class="btn btn-sm btn-outline-danger font-prompt" onclick="confirmCancelDraft()" style="font-size:0.8rem;">
           <i class="bi bi-trash me-1"></i>ยกเลิก Draft
         </button>
@@ -1301,6 +1328,156 @@ function confirmSubmit() {
 /* ── attach file ── */
 function openAttach(iid) {
     Swal.fire({ icon:'info', title:'แนบไฟล์', text:'ยังใช้งานไม่ได้', confirmButtonText:'ตกลง', customClass:{popup:'font-prompt'} });
+}
+
+/* ── ขอเพิ่มทรัพย์สินใหม่ (Data Entry ส่งคำขอให้ Admin ไปสร้างทะเบียนจริง) ── */
+/* ── ฟิลด์ต่อประเภททรัพย์สิน — ตรงกับฟอร์มจริงของ Admin เพื่อไม่ต้องเดา ──
+   type: 'text' | 'number' | 'select'
+   group: ชื่อ option group จาก asset_request_options.php (เฉพาะ select ที่ดึงจาก DB)
+   staticOptions: ตัวเลือกคงที่ (ไม่ต้องดึง DB) */
+var ASSET_FIELD_SPECS = {
+    Equipment: {
+        primaryLabel: 'ชื่อเครื่องจักร', fields: [
+            { key: 'equipmentType', label: 'ประเภทเครื่องจักร', type: 'select', group: 'equipmentType' },
+            { key: 'fuelType', label: 'ประเภทเชื้อเพลิง', type: 'select', group: 'fuelType' }
+        ]
+    },
+    Vehicle: {
+        primaryLabel: 'ทะเบียนรถ', fields: [
+            { key: 'vehicleType', label: 'ประเภทพาหนะ', type: 'select', group: 'vehicleType' },
+            { key: 'fuelType', label: 'ประเภทเชื้อเพลิง', type: 'select', group: 'fuelType' }
+        ]
+    },
+    Refrigerant: {
+        primaryLabel: 'ชื่ออุปกรณ์', fields: [
+            { key: 'refrigerantType', label: 'ประเภทสารทำความเย็น', type: 'select', group: 'refrigerantType' },
+            { key: 'capacity', label: 'ขนาด (Btu/hr)', type: 'number' },
+            { key: 'powerKW', label: 'กำลังไฟฟ้า (kW)', type: 'number' },
+            { key: 'chargeKg', label: 'ปริมาณสารทำความเย็น (kg)', type: 'number' }
+        ]
+    },
+    WaterMeter: {
+        primaryLabel: 'ชื่อมิเตอร์', fields: [
+            { key: 'waterMeterType', label: 'ประเภทมิเตอร์', type: 'select', group: 'waterMeterType' },
+            { key: 'waterSourceType', label: 'แหล่งน้ำ', type: 'select', group: 'waterSourceType' },
+            { key: 'meterNo', label: 'เลขมิเตอร์', type: 'text' },
+            { key: 'installDate', label: 'วันติดตั้ง', type: 'date' },
+            { key: 'location', label: 'ตำแหน่งติดตั้ง', type: 'text' }
+        ]
+    },
+    ElectricMeter: {
+        primaryLabel: 'ชื่อมิเตอร์', fields: [
+            { key: 'electricMeterType', label: 'ประเภทมิเตอร์', type: 'select', group: 'electricMeterType' },
+            { key: 'electricSourceType', label: 'แหล่งไฟฟ้า', type: 'select', group: 'electricSourceType' },
+            { key: 'location', label: 'ตำแหน่งติดตั้ง', type: 'text' }
+        ]
+    },
+    Vendor: {
+        primaryLabel: 'ชื่อชาวสวน/ฟาร์ม', fields: [
+            { key: 'productType', label: 'ประเภทสินค้า', type: 'text' },
+            { key: 'contactName', label: 'ชื่อผู้ติดต่อ', type: 'text' },
+            { key: 'phone', label: 'เบอร์โทร', type: 'text' },
+            { key: 'province', label: 'จังหวัด', type: 'text' }
+        ]
+    },
+    Waste: {
+        primaryLabel: 'ชื่อขยะ/ของเสีย', fields: [
+            { key: 'wasteType', label: 'ประเภทขยะ', type: 'select', group: 'wasteType' },
+            { key: 'disposalMethod', label: 'วิธีกำจัด', type: 'select', group: 'disposalMethod' }
+        ]
+    },
+    Employee: {
+        primaryLabel: 'ชื่อ-นามสกุล', fields: [
+            { key: 'department', label: 'แผนก', type: 'text' },
+            { key: 'commuteType', label: 'ประเภทการเดินทาง', type: 'select', staticOptions: [
+                'รถยนต์ส่วนตัว', 'รถจักรยานยนต์', 'ขนส่งสาธารณะ', 'เดิน/จักรยาน', 'รถรับส่งบริษัท', 'อื่นๆ'
+            ] },
+            { key: 'commuteDist', label: 'ระยะทาง (กม./เที่ยว)', type: 'number' }
+        ]
+    }
+};
+
+function requestAsset(scopeNo, assetType, typeLabel) {
+    var spec = ASSET_FIELD_SPECS[assetType] || { primaryLabel: 'ชื่อ/รายละเอียด', fields: [] };
+    var needsOptions = spec.fields.some(function (f) { return f.type === 'select' && f.group; });
+
+    var buildAndShow = function (optionGroups) {
+        var html = '<div class="text-start">';
+        html += '<label class="form-label" style="font-size:0.8rem;font-weight:600;">' + spec.primaryLabel + ' <span class="text-danger">*</span></label>';
+        html += '<input id="reqf_primary" type="text" class="form-control mb-2" style="font-family:\'Prompt\',sans-serif;">';
+        spec.fields.forEach(function (f) {
+            html += '<label class="form-label" style="font-size:0.8rem;font-weight:600;">' + f.label + '</label>';
+            if (f.type === 'select') {
+                var opts = f.staticOptions
+                    ? f.staticOptions.map(function (o) { return { id: o, name: o }; })
+                    : ((optionGroups && optionGroups[f.group]) || []);
+                html += '<select id="reqf_' + f.key + '" class="form-select mb-2" style="font-family:\'Prompt\',sans-serif;"><option value="">— ไม่ระบุ —</option>';
+                opts.forEach(function (o) { html += '<option value="' + o.name.replace(/"/g, '&quot;') + '">' + o.name + '</option>'; });
+                html += '</select>';
+            } else {
+                html += '<input id="reqf_' + f.key + '" type="' + (f.type === 'number' ? 'number' : 'text') + '" class="form-control mb-2" style="font-family:\'Prompt\',sans-serif;">';
+            }
+        });
+        html += '<label class="form-label" style="font-size:0.8rem;font-weight:600;">หมายเหตุเพิ่มเติม</label>';
+        html += '<textarea id="reqf_extra" class="form-control" rows="2" style="font-family:\'Prompt\',sans-serif;"></textarea>';
+        html += '</div>';
+
+        Swal.fire({
+            title: 'ขอเพิ่ม' + typeLabel + 'ใหม่',
+            html: html,
+            showCancelButton: true,
+            confirmButtonText: 'ส่งคำขอ',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#2AABB8',
+            customClass: { popup: 'font-prompt' },
+            width: 480,
+            preConfirm: function () {
+                var primary = document.getElementById('reqf_primary').value.trim();
+                if (!primary) { Swal.showValidationMessage('กรุณาระบุ' + spec.primaryLabel); return false; }
+                var lines = [];
+                var details = { primary: primary };
+                spec.fields.forEach(function (f) {
+                    var el = document.getElementById('reqf_' + f.key);
+                    var val = el ? el.value.trim() : '';
+                    if (val) { lines.push(f.label + ': ' + val); details[f.key] = val; }
+                });
+                var extra = document.getElementById('reqf_extra').value.trim();
+                if (extra) { lines.push('หมายเหตุเพิ่มเติม: ' + extra); details.remark = extra; }
+                return { name: primary, remark: lines.join(' | '), details: details };
+            }
+        }).then(function (result) {
+            if (!result.isConfirmed) { return; }
+            fetch('/carbonfootprint/data_entry/asset_request_save.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scopeNo: scopeNo, assetType: assetType, siteID: SITE_ID,
+                    requestedName: result.value.name, remark: result.value.remark, details: result.value.details, csrf_token: CSRF
+                })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                Swal.fire({
+                    icon: data.success ? 'success' : 'error',
+                    title: data.success ? 'ส่งคำขอแล้ว' : 'เกิดข้อผิดพลาด',
+                    text: data.msg, confirmButtonColor: '#2AABB8', customClass: { popup: 'font-prompt' }
+                });
+            })
+            .catch(function () {
+                Swal.fire({ icon: 'error', title: 'เชื่อมต่อ server ไม่ได้', confirmButtonColor: '#2AABB8', customClass: { popup: 'font-prompt' } });
+            });
+        });
+    };
+
+    if (needsOptions) {
+        Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: function () { Swal.showLoading(); } });
+        fetch('/carbonfootprint/data_entry/asset_request_options.php?assetType=' + encodeURIComponent(assetType))
+            .then(function (r) { return r.json(); })
+            .then(function (data) { buildAndShow(data.groups || {}); })
+            .catch(function () { buildAndShow({}); });
+    } else {
+        buildAndShow({});
+    }
 }
 
 /* ── filter ── */

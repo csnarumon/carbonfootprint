@@ -4,7 +4,7 @@
 */
 require_once '../includes/auth_check.php';
 require_once '../config/db.php';
-requireRole(array(4));
+requireRole(array(4, 5));
 $conn = getConnection();
 $myUserID = (int)$_SESSION['user_id'];
 
@@ -811,9 +811,56 @@ function openModal(id) {
 }
 
 // ============================================================
+// Pre-fill จากคำขอเพิ่มทรัพย์สิน (master/asset_requests.php ส่ง query string มา)
+// ============================================================
+function cfpSelectByText(selectEl, text) {
+    if (!selectEl || !text) { return; }
+    text = text.trim();
+    /* ตัวเลือกจริงมักเป็น "CODE — Name" ส่วนคำขอเก็บมาแค่ Name เฉยๆ — เทียบแบบ "มีคำนี้อยู่ในตัวเลือก" แทน exact match */
+    for (var i = 0; i < selectEl.options.length; i++) {
+        if (selectEl.options[i].text.indexOf(text) !== -1) { selectEl.selectedIndex = i; return; }
+    }
+}
+
+function cfpApplyPrefillFromRequest() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('prefill') !== '1') { return; }
+
+    openModal(0);
+
+    var name = params.get('name');
+    var site = params.get('site');
+    var emtype = params.get('emtype');
+    var esrc = params.get('esrc');
+    var location = params.get('location');
+    var meterNo = params.get('meterno');
+    var voltage = params.get('voltage');
+    var phase = params.get('phase');
+    var maxLoad = params.get('maxload');
+    var installDate = params.get('installdate');
+
+    if (name) { document.getElementById('fName').value = name; }
+    if (site) { document.getElementById('fSite').value = site; }
+    if (emtype) { cfpSelectByText(document.getElementById('fEMType'), emtype); }
+    if (esrc) { cfpSelectByText(document.getElementById('fESrc'), esrc); }
+    if (location) { document.getElementById('fLoc').value = location; }
+    if (meterNo) { document.getElementById('fMNo').value = meterNo; }
+    if (voltage) { document.getElementById('fVolt').value = voltage; }
+    if (phase) {
+        /* คำขอเก็บมาเป็น "1 Phase"/"3 Phase" — ตัวเลือกจริงใช้ value เป็นเลข 1/3 */
+        var phaseDigit = (phase.match(/\d+/) || [''])[0];
+        if (phaseDigit) { document.getElementById('fPhase').value = phaseDigit; }
+    }
+    if (maxLoad) { document.getElementById('fMaxLoad').value = maxLoad; }
+    if (installDate) { document.getElementById('fInstall').value = installDate; }
+}
+
+// ============================================================
 // DOMContentLoaded
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
+
+    cfpApplyPrefillFromRequest();
 
     document.getElementById('btnSave').addEventListener('click', function() {
         var btn = this;
