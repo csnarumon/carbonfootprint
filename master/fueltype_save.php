@@ -75,11 +75,8 @@ if ($action === 'delete') {
     $chk = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC);
 
     if ($chk && $chk['Cnt'] > 0) {
-        /* มีการใช้งานอยู่ → Soft delete (ปิดใช้งาน) แทนการลบจริง */
-        sqlsrv_query($conn, "UPDATE CFP_FuelType SET IsActive=0, UpdatedBy=?, UpdatedDate=GETDATE() WHERE TypeID=?",
-            array((int)$_SESSION['user_id'], $id));
-        logAction($conn, 'DATA_UPDATE', 'CFP_FuelType', $id, null, null, null, 'ปิดใช้งาน (มีการใช้งานอยู่)');
-        redirectWithToast('มีเครื่องจักร/ยานพาหนะใช้ประเภทนี้อยู่ ระบบปิดใช้งานให้แทนการลบ');
+        /* มีการใช้งานอยู่ → บล็อกการลบ ให้ผู้ใช้ไปกดปิดใช้งาน (Toggle) เองแทน */
+        redirectWithToast('ไม่สามารถลบได้ เนื่องจากมีเครื่องจักร/ยานพาหนะ ' . (int)$chk['Cnt'] . ' รายการใช้ประเภทนี้อยู่ — กรุณาปิดใช้งานแทน หรือย้ายไปใช้ประเภทอื่นก่อน', 'error');
     }
 
     $rDel = sqlsrv_query($conn, "DELETE FROM CFP_FuelType WHERE TypeID=?", array($id));
@@ -108,39 +105,38 @@ if ($name === '' ) {
 
 if ($action === 'create') {
 
-    $code = trim($_POST['TypeCode'] ?? '');
-    if ($code === '') {
-        redirectWithToast('กรุณากรอกรหัสประเภทเชื้อเพลิง', 'error');
-    }
-
-    // ตรวจสอบรหัสซ้ำ
-    $checkSql = "SELECT COUNT(*) AS Cnt FROM CFP_FuelType WHERE TypeCode = ?";
-    $checkRes = sqlsrv_query($conn, $checkSql, array($code));
-    if ($checkRes === false) {
-        redirectWithToast('เกิดข้อผิดพลาดในการตรวจสอบรหัส', 'error');
-    }
-    $chkRow = sqlsrv_fetch_array($checkRes, SQLSRV_FETCH_ASSOC);
-    if ($chkRow && $chkRow['Cnt'] > 0) {
-        redirectWithToast('รหัสนี้มีอยู่แล้วในระบบ กรุณาใช้รหัสอื่น', 'error');
-    }
+    /* รหัสสร้างโดยระบบเสมอ ไม่รับค่าจาก Form */
+    $code = generateTypeCode($conn, CODE_PREFIX);
 
     $sql = "INSERT INTO CFP_FuelType
             (TypeCode, TypeName, FuelGroup, DefaultUnit, Description, SortOrder, IsActive, CreatedBy, CreatedDate)
             VALUES (?, ?, ?, ?, ?, ?, 1, ?, GETDATE())";
     $r = sqlsrv_query($conn, $sql, array(
-        $code, $name, 
+        $code, $name,
         ($group !== '' ? $group : null),
         ($unit !== '' ? $unit : null),
         ($desc !== '' ? $desc : null),
         $sort, (int)$_SESSION['user_id']
     ));
 
+    /* กรณีชนกัน (race condition) ลองสร้างรหัสใหม่อีกครั้งเดียว */
+    if ($r === false) {
+        $code = generateTypeCode($conn, CODE_PREFIX);
+        $r = sqlsrv_query($conn, $sql, array(
+            $code, $name,
+            ($group !== '' ? $group : null),
+            ($unit !== '' ? $unit : null),
+            ($desc !== '' ? $desc : null),
+            $sort, (int)$_SESSION['user_id']
+        ));
+    }
+
     if ($r === false) {
         redirectWithToast('เกิดข้อผิดพลาดในการบันทึก', 'error');
     }
 
     logAction($conn, 'DATA_CREATE', 'CFP_FuelType', null, null, null, null,
-        'เพิ่มประเภทเชื้อเพลิง: ' . $code . ' - ' . $nameTH);
+        'เพิ่มประเภทเชื้อเพลิง: ' . $code . ' - ' . $name);
     redirectWithToast('เพิ่มประเภทเชื้อเพลิงเรียบร้อยแล้ว (รหัส ' . $code . ')');
 } elseif ($action === 'update') {
 

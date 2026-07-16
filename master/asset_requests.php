@@ -44,6 +44,7 @@ $assetTypeMap = array(
     'Vendor'        => array('label' => 'ทะเบียนชาวสวน',               'url' => 'vendor.php'),
     'Waste'         => array('label' => 'รายการขยะ/ของเสีย',           'url' => 'waste.php'),
     'Employee'      => array('label' => 'ทะเบียนพนักงาน',              'url' => 'employee.php'),
+    'PositionVehicle' => array('label' => 'รถประจำตำแหน่ง',             'url' => 'positionvehicle.php'),
 );
 
 /* ===== ดึงคำขอทั้งหมด (ค้าง + เสร็จแล้ว) ===== */

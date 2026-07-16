@@ -169,6 +169,9 @@ function nameTd($name, $code) {
       .cfp-tab-dots   { display: none !important; }
       .cfp-dt-length { text-align: left; }
       .cfp-dt-filter { text-align: right; }
+      /* column expand ใช้เฉพาะจอมือถือ (มีปุ่ม "ดูรายละเอียด") — จอใหญ่ไม่ต้องมี ไม่งั้นเหลือคอลัมน์ว่างเปล่า */
+      .cfp-org-table th.cfp-th-expand,
+      .cfp-org-table td.cfp-td-expand { display: none !important; }
     }
     @media (max-width: 767px) {
       /* tab scroll */
@@ -354,7 +357,6 @@ function nameTd($name, $code) {
                 <tr>
                   <th class="cfp-th-expand"></th>
                   <th class="cfp-th-num" style="width:40px">#</th>
-                  <th class="cfp-col-hide" style="width:90px">รหัส</th>
                   <th>ชื่อแผนก</th>
                   <th class="cfp-col-hide f-div">ฝ่าย</th>
                   <th class="cfp-col-hide f-co">บริษัท</th>
@@ -365,7 +367,6 @@ function nameTd($name, $code) {
                 <tr>
                   <th class="cfp-th-expand"></th>
                   <th class="cfp-th-num" style="width:40px">#</th>
-                  <th class="cfp-col-hide" style="width:90px">รหัส</th>
                   <th>ชื่อหน่วยงาน</th>
                   <th class="cfp-col-hide f-dept">แผนก</th>
                   <th class="cfp-col-hide f-div">ฝ่าย</th>
@@ -376,7 +377,6 @@ function nameTd($name, $code) {
                 <tr>
                   <th class="cfp-th-expand"></th>
                   <th class="cfp-th-num" style="width:40px">#</th>
-                  <th class="cfp-col-hide" style="width:100px">รหัส</th>
                   <th>ชื่อตำแหน่ง</th>
                   <th class="cfp-col-hide">บริษัท</th>
                   <th class="cfp-col-hide text-center" style="width:80px">สถานะ</th>
@@ -437,7 +437,6 @@ function nameTd($name, $code) {
                   <tr>
                     <td class="cfp-td-expand text-center" style="padding:4px;width:32px;"></td>
                     <td class="cfp-td-num"><?php echo $i+1; ?></td>
-                    <td class="cfp-col-hide"><code><?php echo htmlspecialchars($r['DeptCode']); ?></code></td>
                     <?php echo nameTd($r['DeptName'], $r['DeptCode']); ?>
                     <td class="cfp-col-hide f-div" style="font-size:0.82rem"><?php echo htmlspecialchars($r['DivisionName'] ?? '—'); ?></td>
                     <td class="cfp-col-hide f-co" style="font-size:0.82rem"><?php echo htmlspecialchars($r['CompanyName'] ?? '—'); ?></td>
@@ -450,7 +449,6 @@ function nameTd($name, $code) {
                   <tr>
                     <td class="cfp-td-expand text-center" style="padding:4px;width:32px;"></td>
                     <td class="cfp-td-num"><?php echo $i+1; ?></td>
-                    <td class="cfp-col-hide"><code><?php echo htmlspecialchars($r['SectionCode']); ?></code></td>
                     <?php echo nameTd($r['SectionName'], $r['SectionCode']); ?>
                     <td class="cfp-col-hide f-dept" style="font-size:0.82rem"><?php echo htmlspecialchars($r['DeptName'] ?? '—'); ?></td>
                     <td class="cfp-col-hide f-div" style="font-size:0.82rem"><?php echo htmlspecialchars($r['DivisionName'] ?? '—'); ?></td>
@@ -463,8 +461,7 @@ function nameTd($name, $code) {
                   <tr>
                     <td class="cfp-td-expand text-center" style="padding:4px;width:32px;"></td>
                     <td class="cfp-td-num"><?php echo $i+1; ?></td>
-                    <td class="cfp-col-hide"><code><?php echo htmlspecialchars($r['PositionCode']); ?></code></td>
-                    <td><?php echo htmlspecialchars($r['PositionName']); ?></td>
+                    <?php echo nameTd($r['PositionName'], $r['PositionCode']); ?>
                     <td class="cfp-col-hide" style="font-size:0.82rem"><?php echo htmlspecialchars($r['CompanyName'] ?? '—'); ?></td>
                     <td class="cfp-col-hide text-center"><?php echo activeBadge($r['IsActive']); ?></td>
                     <td class="text-center"><?php echo actionBtns('position',$r['PositionID'],$r['PositionName'],$r['IsActive'],'openModalPosition'); ?></td>

@@ -206,7 +206,8 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
         if (in_array($roleID, array(4, 5))) {
             $items = cfpNavLink('/carbonfootprint/master/vendor.php','tree','ทะเบียนชาวสวน','vendor',$currentPage,'scope3');
             $items .= cfpNavLink('/carbonfootprint/master/waste.php','trash3','รายการขยะ / ของเสีย','waste',$currentPage,'scope3');
-            $items .= cfpNavLink('/carbonfootprint/master/employee.php','person-walking','ทะเบียนพนักงาน (การเดินทาง)','employee',$currentPage,'scope3');
+            $items .= cfpNavLink('/carbonfootprint/master/employee.php','person-walking','การเดินทางของพนักงาน','employee',$currentPage,'scope3');
+            $items .= cfpNavLink('/carbonfootprint/master/positionvehicle.php','car-front-fill','รถประจำตำแหน่ง','positionvehicle',$currentPage,'scope3');
             echo cfpCollapsibleSection('ทะเบียนทรัพย์สิน (Scope 3)', 'globe-asia-australia', 'S3', 'scope3-badge', $items, $defaultOpen);
         }
 
@@ -225,19 +226,22 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
 
             $items  = cfpNavLink('/carbonfootprint/master/vehicletype.php','card-list','ประเภทยานพาหนะ','vehicletype',$currentPage,'settings',true);
             $items .= cfpNavLink('/carbonfootprint/master/equipmenttype.php','gear-wide-connected','ประเภทเครื่องจักร','equipmenttype',$currentPage,'settings',true);
-            $items .= cfpNavLink('/carbonfootprint/master/fueltype.php','fuel-pump','ประเภทเชื้อเพลิง','fueltype',$currentPage,'settings');
-            $items .= cfpNavLink('/carbonfootprint/master/refrigeranttype.php','snow2','ประเภทสารทำความเย็น','refrigeranttype',$currentPage,'settings');
+            $items .= cfpNavLink('/carbonfootprint/master/fueltype.php','fuel-pump','ประเภทเชื้อเพลิง','fueltype',$currentPage,'settings',true);
+            $items .= cfpNavLink('/carbonfootprint/master/refrigeranttype.php','snow2','ประเภทสารทำความเย็น','refrigeranttype',$currentPage,'settings',true);
             $items .= cfpNavLink('/carbonfootprint/master/watersourcetype.php','water','แหล่งน้ำ','watersourcetype',$currentPage,'settings',true);
             $items .= cfpNavLink('/carbonfootprint/master/watermetertype.php','speedometer2','ประเภทมิเตอร์น้ำ','watermetertype',$currentPage,'settings',true);
-            $items .= cfpNavLink('/carbonfootprint/master/electricsourcetype.php','plug','แหล่งไฟฟ้า','electricsourcetype',$currentPage,'settings');
+            $items .= cfpNavLink('/carbonfootprint/master/electricsourcetype.php','plug','แหล่งไฟฟ้า','electricsourcetype',$currentPage,'settings',true);
             $items .= cfpNavLink('/carbonfootprint/master/electricmetertype.php','toggles','ประเภทมิเตอร์ไฟฟ้า','electricmetertype',$currentPage,'settings',true);
-            $items .= cfpNavLink('/carbonfootprint/master/wastewatertype.php','droplet','ประเภทการปล่อยน้ำเสีย','wastewatertype',$currentPage,'settings');
-            $items .= cfpNavLink('/carbonfootprint/master/extinguishertype.php','fire','ประเภทสารดับเพลิง','extinguishertype',$currentPage,'settings');
+            $items .= cfpNavLink('/carbonfootprint/master/wastewatertype.php','droplet','ประเภทการปล่อยน้ำเสีย','wastewatertype',$currentPage,'settings',true);
+            $items .= cfpNavLink('/carbonfootprint/master/extinguishertype.php','fire','ประเภทสารดับเพลิง','extinguishertype',$currentPage,'settings',true);
             $items .= cfpNavLink('/carbonfootprint/master/flourwastetype.php','recycle','ประเภทการกำจัดเศษแป้ง','flourwastetype',$currentPage,'settings',true);
-            $items .= cfpNavLink('/carbonfootprint/master/wastetype.php','bag-x','ประเภทขยะ','wastetype',$currentPage,'settings');
+            $items .= cfpNavLink('/carbonfootprint/master/wastetype.php','bag-x','ประเภทขยะ','wastetype',$currentPage,'settings',true);
             $items .= cfpNavLink('/carbonfootprint/master/wastedisposalsite.php','geo-alt','สถานที่กำจัดขยะ','wastedisposalsite',$currentPage,'settings',true);
-            $items .= cfpNavLink('/carbonfootprint/master/wastedisposalmethod.php','arrow-repeat','วิธีกำจัดขยะ','wastedisposalmethod',$currentPage,'settings');
+            $items .= cfpNavLink('/carbonfootprint/master/wastedisposalmethod.php','arrow-repeat','วิธีกำจัดขยะ','wastedisposalmethod',$currentPage,'settings',true);
             $items .= cfpNavLink('/carbonfootprint/master/scope3category.php','list-check','Category Scope 3','scope3category',$currentPage,'settings');
+            if ($roleID === 4) {
+                $items .= cfpNavLink('/carbonfootprint/master/unit.php','rulers','หน่วยวัด','unit',$currentPage,'settings');
+            }
             echo cfpCollapsibleSection('การตั้งค่าข้อมูลพื้นฐาน', 'gear', 'SET', 'settings-badge', $items, $defaultOpen);
         }
 
@@ -253,11 +257,9 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
         // unit/org = Admin เท่านั้น (โครงสร้างระบบ) / ef_link+ef_value = Admin+SustainAdmin (มาตรฐานคำนวณคาร์บอน)
         if (in_array($roleID, array(4, 5))) {
             $items = '';
-            if ($roleID === 4) {
-                $items .= cfpNavLink('/carbonfootprint/master/unit.php','rulers','หน่วยวัด','unit',$currentPage,'reference');
-            }
-            $items .= cfpNavLink('/carbonfootprint/master/ef_link.php','journal-bookmark','แหล่งอ้างอิง EF','ef_link',$currentPage,'reference');
+            $items .= cfpNavLink('/carbonfootprint/master/ef_source.php','journal-bookmark','แหล่งอ้างอิง EF','ef_source',$currentPage,'reference');
             $items .= cfpNavLink('/carbonfootprint/master/ef_value.php','database','ค่า EF','ef_value',$currentPage,'reference');
+            $items .= cfpNavLink('/carbonfootprint/master/ef_link.php','link-45deg','ผูก EF กับกิจกรรม','ef_link',$currentPage,'reference');
             if ($roleID === 4) {
                 $items .= cfpNavLink('/carbonfootprint/master/org.php','diagram-3','โครงสร้างองค์กร','org',$currentPage,'reference');
             }

@@ -17,7 +17,7 @@ $sheet       = $spreadsheet->getActiveSheet();
 $sheet->setTitle('ประเภทสารทำความเย็น');
 
 /* ===== Header ===== */
-$headers = array('รหัสประเภท*', 'ชื่อประเภท*', 'GWP100', 'คำอธิบาย', 'ลำดับแสดง');
+$headers = array('ชื่อประเภท*', 'GWP100', 'คำอธิบาย', 'ลำดับแสดง');
 $col = 'A';
 foreach ($headers as $h) {
     $sheet->setCellValue($col . '1', $h);
@@ -31,11 +31,11 @@ $headerStyle = array(
         'startColor' => array('rgb' => '2AABB8'),
     ),
 );
-$sheet->getStyle('A1:E1')->applyFromArray($headerStyle);
+$sheet->getStyle('A1:D1')->applyFromArray($headerStyle);
 
 /* ===== แถวตัวอย่าง ===== */
 $sampleRows = array(
-    array('R32', 'HFC-32', 675, 'สารทำความเย็นที่ใช้ในเครื่องปรับอากาศทั่วไป มีค่าศักยภาพการเกิดภาวะโลกร้อน (GWP) ต่ำกว่า R410A', 1),
+    array('HFC-32', 675, 'สารทำความเย็นที่ใช้ในเครื่องปรับอากาศทั่วไป มีค่าศักยภาพการเกิดภาวะโลกร้อน (GWP) ต่ำกว่า R410A', 1),
 );
 
 $rowNum = 2;
@@ -44,15 +44,13 @@ foreach ($sampleRows as $row) {
     $sheet->setCellValue('B' . $rowNum, $row[1]);
     $sheet->setCellValue('C' . $rowNum, $row[2]);
     $sheet->setCellValue('D' . $rowNum, $row[3]);
-    $sheet->setCellValue('E' . $rowNum, $row[4]);
     $rowNum++;
 }
 
-$sheet->getColumnDimension('A')->setWidth(14);
-$sheet->getColumnDimension('B')->setWidth(18);
-$sheet->getColumnDimension('C')->setWidth(12);
-$sheet->getColumnDimension('D')->setWidth(45);
-$sheet->getColumnDimension('E')->setWidth(12);
+$sheet->getColumnDimension('A')->setWidth(18);
+$sheet->getColumnDimension('B')->setWidth(12);
+$sheet->getColumnDimension('C')->setWidth(45);
+$sheet->getColumnDimension('D')->setWidth(12);
 
 $fileName = 'Template_RefrigerantType_' . date('Ymd') . '.xlsx';
 

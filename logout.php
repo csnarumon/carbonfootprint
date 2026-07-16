@@ -28,6 +28,14 @@ session_destroy();
 <head><meta charset="UTF-8"></head>
 <body>
 <script>
+/* ล้างสถานะเมนู sidebar (ย่อ/ขยาย) ที่เก็บไว้ใน localStorage ทุก role
+   กันไม่ให้ค่าที่เคยขยายไว้ค้างข้ามรอบ login (role 4,5 ต้องเริ่มย่อทุกครั้งหลัง login ใหม่) */
+Object.keys(localStorage).forEach(function (key) {
+    if (key.indexOf('cfp_sidebar_menu_state_role') === 0) {
+        localStorage.removeItem(key);
+    }
+});
+
 /* ถ้าอยู่ใน iframe ให้ redirect ทั้ง window หลัก */
 if (window.self !== window.top) {
     window.top.location.href = '/carbonfootprint/login.php';

@@ -95,6 +95,10 @@ $cap       = is_numeric($_POST['Capacity'] ?? '') ? (float)$_POST['Capacity'] : 
 $capUnit   = cleanStr($_POST['CapacityUnit'] ?? 'Btu/hr', 50);
 $powerKW   = is_numeric($_POST['PowerKW'] ?? '') ? (float)$_POST['PowerKW'] : null;
 $charge    = is_numeric($_POST['RefrigerantCharge'] ?? '') ? (float)$_POST['RefrigerantCharge'] : null;
+$chargeG   = is_numeric($_POST['RefrigerantChargeGram'] ?? '') ? (float)$_POST['RefrigerantChargeGram'] : null;
+$leakInstall = is_numeric($_POST['LeakRateInstall'] ?? '') ? (float)$_POST['LeakRateInstall'] : null;
+$leakOp      = is_numeric($_POST['LeakRateOperation'] ?? '') ? (float)$_POST['LeakRateOperation'] : null;
+$dispRemain  = is_numeric($_POST['DisposalRemainPct'] ?? '') ? (float)$_POST['DisposalRemainPct'] : null;
 $install   = !empty($_POST['InstallDate']) ? cleanStr($_POST['InstallDate'], 20) : null;
 $loc       = cleanStr($_POST['Location'] ?? '', 300);
 $remark    = cleanStr($_POST['Remark'] ?? '', 500);
@@ -118,10 +122,11 @@ if ($action === 'create') {
     if (sqlsrv_fetch($chk)) { jsonOut(false, 'รหัส "' . $code . '" มีอยู่ในระบบแล้ว'); }
 
     $res = sqlsrv_query($conn,
-        "INSERT INTO CFP_Cooling (CoolingCode,CoolingName,SiteID,RefrigerantTypeID,Brand,Model,SerialNo,Capacity,CapacityUnit,PowerKW,RefrigerantCharge,InstallDate,Location,Remark,IsActive,CreatedBy,CreatedDate)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,GETDATE())",
+        "INSERT INTO CFP_Cooling (CoolingCode,CoolingName,SiteID,RefrigerantTypeID,Brand,Model,SerialNo,Capacity,CapacityUnit,PowerKW,RefrigerantCharge,RefrigerantChargeGram,LeakRateInstall,LeakRateOperation,DisposalRemainPct,InstallDate,Location,Remark,IsActive,CreatedBy,CreatedDate)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,GETDATE())",
         array($code,$name,$siteID,$refTypeID,$brand?:null,$model?:null,$serial?:null,
-              $cap,$capUnit?:null,$powerKW,$charge,$install,$loc?:null,$remark?:null,$userID));
+              $cap,$capUnit?:null,$powerKW,$charge,$chargeG,$leakInstall,$leakOp,$dispRemain,
+              $install,$loc?:null,$remark?:null,$userID));
     if (!$res) {
         $e = sqlsrv_errors();
         jsonOut(false, 'บันทึกไม่สำเร็จ: ' . ($e[0]['message'] ?? ''));
@@ -149,10 +154,11 @@ if ($action === 'update') {
     if (sqlsrv_fetch($chk)) { jsonOut(false, 'รหัส "' . $code . '" มีอยู่ในระบบแล้ว'); }
 
     $res = sqlsrv_query($conn,
-        "UPDATE CFP_Cooling SET CoolingCode=?,CoolingName=?,SiteID=?,RefrigerantTypeID=?,Brand=?,Model=?,SerialNo=?,Capacity=?,CapacityUnit=?,PowerKW=?,RefrigerantCharge=?,InstallDate=?,Location=?,Remark=?,UpdatedBy=?,UpdatedDate=GETDATE()
+        "UPDATE CFP_Cooling SET CoolingCode=?,CoolingName=?,SiteID=?,RefrigerantTypeID=?,Brand=?,Model=?,SerialNo=?,Capacity=?,CapacityUnit=?,PowerKW=?,RefrigerantCharge=?,RefrigerantChargeGram=?,LeakRateInstall=?,LeakRateOperation=?,DisposalRemainPct=?,InstallDate=?,Location=?,Remark=?,UpdatedBy=?,UpdatedDate=GETDATE()
          WHERE CoolingID=?",
         array($code,$name,$siteID,$refTypeID,$brand?:null,$model?:null,$serial?:null,
-              $cap,$capUnit?:null,$powerKW,$charge,$install,$loc?:null,$remark?:null,$userID,$id));
+              $cap,$capUnit?:null,$powerKW,$charge,$chargeG,$leakInstall,$leakOp,$dispRemain,
+              $install,$loc?:null,$remark?:null,$userID,$id));
     if (!$res) {
         $e = sqlsrv_errors();
         jsonOut(false, 'แก้ไขไม่สำเร็จ: ' . ($e[0]['message'] ?? ''));

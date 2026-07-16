@@ -17,7 +17,7 @@ $sheet       = $spreadsheet->getActiveSheet();
 $sheet->setTitle('ประเภทขยะของเสีย');
 
 /* ===== Header ===== */
-$headers = array('รหัสประเภท*', 'ชื่อประเภท*', 'กลุ่มของเสีย', 'คำอธิบาย', 'ลำดับแสดง');
+$headers = array('ชื่อประเภท*', 'กลุ่มของเสีย', 'คำอธิบาย', 'ลำดับแสดง');
 $col = 'A';
 foreach ($headers as $h) {
     $sheet->setCellValue($col . '1', $h);
@@ -31,11 +31,11 @@ $headerStyle = array(
         'startColor' => array('rgb' => '2AABB8'),
     ),
 );
-$sheet->getStyle('A1:E1')->applyFromArray($headerStyle);  // ปรับเป็น A1:E1
+$sheet->getStyle('A1:D1')->applyFromArray($headerStyle);
 
 /* ===== แถวตัวอย่าง ===== */
 $sampleRows = array(
-    array('GENERAL', 'ขยะทั่วไป', 'General Waste', 'ขยะที่ไม่สามารถนำกลับมาใช้ใหม่ได้', 1),
+    array('ขยะทั่วไป', 'General Waste', 'ขยะที่ไม่สามารถนำกลับมาใช้ใหม่ได้', 1),
 );
 
 $rowNum = 2;
@@ -44,15 +44,13 @@ foreach ($sampleRows as $row) {
     $sheet->setCellValue('B' . $rowNum, $row[1]);
     $sheet->setCellValue('C' . $rowNum, $row[2]);
     $sheet->setCellValue('D' . $rowNum, $row[3]);
-    $sheet->setCellValue('E' . $rowNum, $row[4]);
     $rowNum++;
 }
 
-$sheet->getColumnDimension('A')->setWidth(18);
-$sheet->getColumnDimension('B')->setWidth(28);
-$sheet->getColumnDimension('C')->setWidth(18);
-$sheet->getColumnDimension('D')->setWidth(40);
-$sheet->getColumnDimension('E')->setWidth(12);
+$sheet->getColumnDimension('A')->setWidth(28);
+$sheet->getColumnDimension('B')->setWidth(18);
+$sheet->getColumnDimension('C')->setWidth(40);
+$sheet->getColumnDimension('D')->setWidth(12);
 $fileName = 'Template_WasteType_' . date('Ymd') . '.xlsx';
 
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

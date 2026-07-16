@@ -170,7 +170,10 @@ $scope2Labels = array(
         </div>
         <div class="cfp-page-toolbar mb-3">
           <div class="d-flex gap-2 flex-wrap flex-grow-1" style="max-width:680px;">
-            <input type="text" id="fltKeyword" class="form-control font-prompt" style="font-size:0.85rem;min-width:160px;" placeholder="ค้นหาชื่อรายการ...">
+            <div class="cfp-search-wrap flex-grow-1" style="position:relative;">
+            <input type="text" id="fltKeyword" class="form-control font-prompt" style="font-size:0.85rem;min-width:160px;padding-right:28px;" placeholder="ค้นหาชื่อรายการ...">
+            <button type="button" class="cfp-search-clear" onclick="clearKeyword()" title="ล้างคำค้นหา" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;padding:2px;line-height:1;color:var(--cfp-text-muted,#888);font-size:0.95rem;cursor:pointer;z-index:2;"><i class="bi bi-x-circle-fill"></i></button>
+            </div>
             <select id="fltScope" class="form-select font-prompt" style="font-size:0.85rem;max-width:130px;">
               <option value="">ทุก Scope</option>
               <option value="1">Scope 1</option>
@@ -232,7 +235,7 @@ $scope2Labels = array(
                   <?php } ?>
                 </td>
                 <td class="text-center">
-                  <span class="scope-badge" style="background:<?php echo $sColor; ?>;">S<?php echo $sNo; ?></span>
+                  <span class="scope-badge" style="background:<?php echo $sColor; ?>;">Scope<?php echo $sNo; ?></span>
                 </td>
                 <td class="text-center">
                   <?php if ($sNo === 3 && $cNo !== null) { ?>
@@ -587,9 +590,21 @@ $(document).ready(function() {
         order: [[2,'asc'],[3,'asc'],[0,'asc']],
         pageLength: 25,
         lengthMenu: [[10,25,50,100],[10,25,50,100]],
-        dom: '<"row align-items-center mb-2"<"col-auto"l><"col"f>>rtip',
+        dom: '<"row align-items-center mb-2"<"col-auto"l><"col">>rtip',
         stateSave: true,       /* จำ pagination/คำค้นหา/ลำดับ ให้อัตโนมัติ (DataTables built-in) */
-        stateDuration: 3600    /* จำไว้ 1 ชั่วโมง */
+        stateDuration: 3600,   /* จำไว้ 1 ชั่วโมง */
+        autoWidth: false,      /* กันไม่ให้ DataTables คำนวณความกว้างคอลัมน์เองแล้วบีบ "ชื่อรายการ" จนแคบ */
+        columnDefs: [
+            { targets: 0, width: '40px' },
+            { targets: 1, width: '32%' },   /* คอลัมน์ "ชื่อรายการ" */
+            { targets: 2, width: '90px' },
+            { targets: 3, width: '120px' },
+            { targets: 4, width: '80px' },
+            { targets: 5, width: '70px' },
+            { targets: 6, width: '80px' },
+            { targets: 7, width: '110px' },
+            { targets: 8, width: '110px', className: 'text-nowrap' }
+        ]
     });
 
     /* ── บันทึกค่า filter ทุกครั้งที่เปลี่ยน + re-apply ตอนโหลดหน้า ── */
@@ -607,6 +622,12 @@ $(document).ready(function() {
     if (savedFlt.scope || savedFlt.cat || savedFlt.status) { tblApi.draw(); }
 });
 
+$('#fltKeyword').on('input', function () {
+    $(this).closest('.cfp-search-wrap').find('.cfp-search-clear').toggle(this.value.length > 0);
+});
+function clearKeyword() {
+    $('#fltKeyword').val('').trigger('keyup').trigger('input').focus();
+}
 function clearFilter() {
     $('#fltKeyword,#fltScope,#fltCat,#fltStatus').val('');
     sessionStorage.removeItem('activityitemFilters');

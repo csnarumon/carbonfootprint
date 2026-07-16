@@ -196,8 +196,11 @@ if ($resUsed !== false) {
 
         <div class="cfp-page-toolbar mb-3">
           <div class="d-flex gap-2 flex-grow-1" style="max-width:580px;">
-            <input type="text" id="fltKeyword" class="form-control font-prompt" style="font-size:0.85rem;"
+            <div class="cfp-search-wrap flex-grow-1" style="position:relative;">
+            <input type="text" id="fltKeyword" class="form-control font-prompt" style="font-size:0.85rem;padding-right:28px;"
                    placeholder="ค้นหารหัส / ชื่อหน่วย / ประเภท...">
+            <button type="button" class="cfp-search-clear" onclick="clearKeyword()" title="ล้างคำค้นหา" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;padding:2px;line-height:1;color:var(--cfp-text-muted,#888);font-size:0.95rem;cursor:pointer;z-index:2;"><i class="bi bi-x-circle-fill"></i></button>
+            </div>
             <select id="fltType" class="form-select font-prompt" style="font-size:0.85rem;max-width:160px;">
               <option value="">ประเภททั้งหมด</option>
               <?php foreach ($unitTypes as $t) { ?>
@@ -228,7 +231,6 @@ if ($resUsed !== false) {
             <thead>
               <tr>
                 <th style="width:40px;">#</th>
-                <th style="width:110px;">รหัส</th>
                 <th>ชื่อหน่วย</th>
                 <th style="width:130px;">ประเภทหน่วย</th>
                 <th>คำอธิบาย</th>
@@ -242,8 +244,10 @@ if ($resUsed !== false) {
               <tr data-status="<?php echo $r['IsActive'] ? '1' : '0'; ?>"
                   data-type="<?php echo (int)($r['UnitTypeID'] ?? 0); ?>">
                 <td><?php echo $i + 1; ?></td>
-                <td><code><?php echo htmlspecialchars($r['UnitCode']); ?></code></td>
-                <td><?php echo htmlspecialchars($r['UnitName']); ?></td>
+                <td>
+                  <?php echo htmlspecialchars($r['UnitName']); ?>
+                  <div><code style="font-size:0.7rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['UnitCode']); ?></code></div>
+                </td>
                 <td>
                   <?php if (!empty($r['TypeName'])) { ?>
                     <?php
@@ -490,7 +494,7 @@ $(document).ready(function () {
         order:      [[5, 'asc'], [2, 'asc']],
         pageLength: 25,
         lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-        dom: '<"row align-items-center mb-2"<"col-auto"l><"col"f>>rtip'
+        dom: '<"row align-items-center mb-2"<"col-auto"l><"col">>rtip'
     });
 
     $('#fltKeyword').on('keyup', function () {
@@ -501,6 +505,12 @@ $(document).ready(function () {
     });
 });
 
+$('#fltKeyword').on('input', function () {
+    $(this).closest('.cfp-search-wrap').find('.cfp-search-clear').toggle(this.value.length > 0);
+});
+function clearKeyword() {
+    $('#fltKeyword').val('').trigger('keyup').trigger('input').focus();
+}
 function clearFilter() {
     $('#fltKeyword').val('');
     $('#fltType').val('');

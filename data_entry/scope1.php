@@ -260,7 +260,7 @@ $hdrStatus = -1; /* -1 = ยังไม่มี Header */
             if (!empty($hdrRow['ResponsibleDeptID'])) { $myDeptID = (int)$hdrRow['ResponsibleDeptID']; }
             $params = array_merge(array($hdrID), $itemIDs);
             $resData = @sqlsrv_query($conn,
-                "SELECT ActivityID AS DataID, ItemID, Quantity, Remark, EvidenceFile, AssetID, AssetType
+                "SELECT ActivityID AS DataID, ItemID, Quantity, Remark, EvidenceFile, AssetID, AssetType, Cost
                  FROM CFP_ActivityData
                  WHERE HeaderID=? AND ItemID IN ($ph) AND IsActive=1",
                 $params);
@@ -377,6 +377,8 @@ body { font-family:'Prompt',sans-serif; }
 .cat-tab .tab-cnt { font-size:0.68rem; padding:1px 6px; border-radius:9px; font-weight:600; }
 .cat-tab.active .tab-cnt { background:var(--cfp-primary); color:#fff; }
 .cat-tab:not(.active) .tab-cnt { background:var(--cfp-bg); color:var(--cfp-text-muted); }
+.cat-tab.cat-tab-empty { color:#B0BEC5; }
+.cat-tab.cat-tab-empty:not(.active) .tab-cnt { background:#F5F5F5; color:#B0BEC5; }
 
 /* ── Desktop: Data Table ── */
 .entry-table { width:100%; border-collapse:collapse; font-size:0.82rem; }
@@ -592,20 +594,14 @@ body { font-family:'Prompt',sans-serif; }
 </div>
 
 <!-- Category content -->
-<?php if (empty($grouped)) { ?>
-<div class="cfp-card text-center py-5" style="color:var(--cfp-text-muted);">
-  <i class="bi bi-inbox" style="font-size:2.5rem;display:block;margin-bottom:8px;opacity:.4;"></i>
-  ไม่มีรายการ Scope 1 ที่ได้รับสิทธิ์ในช่วงนี้
-</div>
-<?php } else { ?>
-
-<!-- Category Tabs -->
+<!-- Category Tabs — แสดงครบทุก Category เสมอ (Category ที่ไม่มีรายการจะเป็นสีเทา พร้อมข้อความอธิบาย) -->
 <div class="cfp-card" style="padding:0;">
   <div class="cat-tabs" id="catTabs">
     <?php
     $firstCat = true;
-    foreach ($grouped as $catNo => $catItems) {
-        $catInfo  = $catLabels[$catNo] ?? array('label'=>'อื่นๆ','icon'=>'bi-circle','color'=>'#888');
+    foreach ($catLabels as $catNo => $catInfo) {
+        $catItems  = $grouped[$catNo] ?? array();
+        $isEmptyCat = empty($catItems);
         $catFilled = count(array_filter($catItems, function($i) use ($dataMap) {
             $rowsForItem = $dataMap[(int)$i['ItemID']] ?? array();
             foreach ($rowsForItem as $d) { if ($d['Quantity'] !== null) { return true; } }
@@ -613,10 +609,10 @@ body { font-family:'Prompt',sans-serif; }
         }));
         $activeClass = $firstCat ? 'active' : '';
     ?>
-    <button class="cat-tab <?php echo $activeClass; ?>"
+    <button class="cat-tab <?php echo $activeClass; ?><?php echo $isEmptyCat ? ' cat-tab-empty' : ''; ?>"
             onclick="switchCat(<?php echo $catNo; ?>)"
             id="catTab<?php echo $catNo; ?>">
-      <i class="<?php echo $catInfo['icon']; ?>" style="font-size:0.85rem;color:<?php echo $catInfo['color']; ?>;"></i>
+      <i class="<?php echo $catInfo['icon']; ?>" style="font-size:0.85rem;color:<?php echo $isEmptyCat ? '#B0BEC5' : $catInfo['color']; ?>;"></i>
       <?php echo htmlspecialchars($catInfo['label']); ?>
       <span class="tab-cnt"><?php echo $catFilled; ?>/<?php echo count($catItems); ?></span>
     </button>
@@ -626,11 +622,20 @@ body { font-family:'Prompt',sans-serif; }
   <!-- Tab contents -->
   <?php
   $firstCat = true;
-  foreach ($grouped as $catNo => $catItems) {
-      $catInfo = $catLabels[$catNo] ?? array('label'=>'อื่นๆ','icon'=>'bi-circle','color'=>'#888');
+  foreach ($catLabels as $catNo => $catInfo) {
+      $catItems  = $grouped[$catNo] ?? array();
       $dispStyle = $firstCat ? '' : 'display:none;';
   ?>
   <div class="cat-content" id="cat<?php echo $catNo; ?>" style="<?php echo $dispStyle; ?>">
+  <?php if (empty($catItems)) { ?>
+    <div class="text-center py-5" style="color:var(--cfp-text-muted);">
+      <i class="<?php echo $catInfo['icon']; ?>" style="font-size:2.5rem;display:block;margin-bottom:8px;opacity:.3;"></i>
+      ยังไม่มีรายการ <?php echo htmlspecialchars($catInfo['label']); ?> ที่ลงทะเบียนไว้ที่ Site นี้<br>
+      <span style="font-size:0.78rem;">
+        กรุณา <a href="/carbonfootprint/data_entry/my_asset_requests.php" style="color:var(--cfp-primary);font-weight:500;">ส่งคำขอเพิ่มทรัพย์สิน</a> เพื่อให้ Admin เพิ่มให้ Site นี้
+      </span>
+    </div>
+  <?php } else { ?>
 
     <!-- ══ DESKTOP TABLE ══ -->
     <div class="table-responsive desktop-only">
@@ -638,12 +643,13 @@ body { font-family:'Prompt',sans-serif; }
       <thead>
         <tr>
           <th style="width:30px;">#</th>
-          <th>รายการกิจกรรม</th>
-          <th style="width:150px;">ทรัพย์สิน</th>
+          <th style="min-width:260px;">รายการกิจกรรม</th>
+          <th style="width:220px;">ทรัพย์สิน</th>
           <th style="width:130px;">ปริมาณ</th>
           <th style="width:60px;">หน่วย</th>
           <th style="width:140px;">ค่า EF</th>
           <th style="width:120px;">kgCO₂e</th>
+          <th style="width:45px;">ค่าใช้จ่าย (บาท)</th>
           <th style="width:120px;">หมายเหตุ</th>
           <th style="width:70px;">แนบ</th>
           <th style="width:90px;">สถานะ</th>
@@ -710,16 +716,16 @@ body { font-family:'Prompt',sans-serif; }
               <?php } ?>
             </td>
             <td>
-              <input type="number" class="<?php echo ($qty === null) ? 'qty-input empty' : 'qty-input'; ?>"
+              <input type="text" inputmode="decimal" class="<?php echo ($qty === null) ? 'qty-input empty' : 'qty-input'; ?>"
                      id="qty_<?php echo $rowKey; ?>" value="<?php echo ($qty !== null) ? $qty : ''; ?>"
-                     placeholder="0.00" step="0.001" min="0" <?php echo $itemInputDisabled; ?>
-                     onchange="calcCO2('<?php echo $rowKey; ?>', <?php echo $ef ? $ef['EFValue'] : 0; ?>)"
-                     oninput="calcCO2('<?php echo $rowKey; ?>', <?php echo $ef ? $ef['EFValue'] : 0; ?>)">
+                     placeholder="0.00" <?php echo $itemInputDisabled; ?>
+                     onchange="cfpDecOnly(this);calcCO2('<?php echo $rowKey; ?>', <?php echo $ef ? $ef['EFValue'] : 0; ?>)"
+                     oninput="cfpDecOnly(this);calcCO2('<?php echo $rowKey; ?>', <?php echo $ef ? $ef['EFValue'] : 0; ?>)">
             </td>
             <td style="font-size:0.78rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($item['UnitName'] ?? ''); ?></td>
             <td>
               <?php if ($ef) { ?>
-              <span class="ef-badge"><?php echo number_format((float)$ef['EFValue'], 4); ?> kgCO₂e/<?php echo htmlspecialchars($item['UnitName'] ?? ''); ?></span>
+              <span class="ef-badge"><?php echo number_format((float)$ef['EFValue'], 4); ?> kgCO₂e</span>
               <div style="font-size:0.68rem;color:var(--cfp-text-muted);margin-top:2px;"><?php echo htmlspecialchars($ef['SourceCode'] ?? ''); ?> <?php echo $ef['YearApply'] ?? ''; ?></div>
               <?php } else { ?><span style="font-size:0.75rem;color:var(--cfp-text-muted);">ไม่มี EF</span><?php } ?>
             </td>
@@ -730,6 +736,11 @@ body { font-family:'Prompt',sans-serif; }
               <?php if ($co2 !== null) { ?>
               <div style="font-size:0.68rem;color:var(--cfp-text-muted);">= <?php echo number_format($co2/1000, 4); ?> tCO₂e</div>
               <?php } ?>
+            </td>
+            <td>
+              <input type="text" inputmode="decimal" class="qty-input" style="width:100%;" id="cost_<?php echo $rowKey; ?>" oninput="cfpDecOnly(this);"
+                     value="<?php echo ($d && $d['Cost'] !== null) ? (float)$d['Cost'] : ''; ?>"
+                     placeholder="0.00" <?php echo $itemInputDisabled; ?>>
             </td>
             <td>
               <input type="text" class="remark-input" id="rmk_<?php echo $rowKey; ?>"
@@ -809,11 +820,11 @@ body { font-family:'Prompt',sans-serif; }
                       $qCalc = "calcCO2('{$rowKey}', {$efV})";
                   }
                   ?>
-                  <input type="number" class="<?php echo ($qty === null) ? 'qty-input empty' : 'qty-input'; ?>"
+                  <input type="text" inputmode="decimal" class="<?php echo ($qty === null) ? 'qty-input empty' : 'qty-input'; ?>"
                          id="qty_<?php echo $rowKey; ?>" value="<?php echo ($qty !== null) ? $qty : ''; ?>"
-                         placeholder="0.00" step="0.001" min="0" <?php echo $itemInputDisabled; ?>
-                         onchange="<?php echo $qCalc; ?>"
-                         oninput="<?php echo $qCalc; ?>">
+                         placeholder="0.00" <?php echo $itemInputDisabled; ?>
+                         onchange="cfpDecOnly(this);<?php echo $qCalc; ?>"
+                         oninput="cfpDecOnly(this);<?php echo $qCalc; ?>">
                 </td>
                 <td style="font-size:0.78rem;color:var(--cfp-text-muted);"><?php echo $n===0 ? htmlspecialchars($item['UnitName'] ?? '') : ''; ?></td>
                 <td>
@@ -821,7 +832,7 @@ body { font-family:'Prompt',sans-serif; }
                     <?php if ($catNo === 3) { ?>
                     <span style="font-size:0.75rem;color:var(--cfp-text-muted);">GWP × ปริมาณ kg</span>
                     <?php } elseif ($ef) { ?>
-                    <span class="ef-badge"><?php echo number_format((float)$ef['EFValue'], 4); ?> kgCO₂e/<?php echo htmlspecialchars($item['UnitName'] ?? ''); ?></span>
+                    <span class="ef-badge"><?php echo number_format((float)$ef['EFValue'], 4); ?> kgCO₂e</span>
                     <div style="font-size:0.68rem;color:var(--cfp-text-muted);margin-top:2px;"><?php echo htmlspecialchars($ef['SourceCode'] ?? ''); ?> <?php echo $ef['YearApply'] ?? ''; ?></div>
                     <?php } else { ?><span style="font-size:0.75rem;color:var(--cfp-text-muted);">ไม่มี EF</span><?php } ?>
                   <?php } ?>
@@ -830,6 +841,11 @@ body { font-family:'Prompt',sans-serif; }
                   <div class="<?php echo ($co2 !== null) ? 'co2-val' : 'co2-empty'; ?>" id="co2_<?php echo $rowKey; ?>">
                     <?php echo ($co2 !== null) ? number_format($co2, 2) : '—'; ?>
                   </div>
+                </td>
+                <td>
+                  <input type="text" inputmode="decimal" class="qty-input" style="width:100%;" id="cost_<?php echo $rowKey; ?>" oninput="cfpDecOnly(this);"
+                         value="<?php echo ($d && $d['Cost'] !== null) ? (float)$d['Cost'] : ''; ?>"
+                         placeholder="0.00" <?php echo $itemInputDisabled; ?>>
                 </td>
                 <td>
                   <input type="text" class="remark-input" id="rmk_<?php echo $rowKey; ?>"
@@ -856,7 +872,7 @@ body { font-family:'Prompt',sans-serif; }
               if (!$itemLocked && $canEdit) { ?>
               <tr class="add-row-tr" id="addrow_<?php echo $iid; ?>" data-additem="<?php echo $iid; ?>" data-nextidx="<?php echo $rowCount; ?>">
                 <td></td>
-                <td colspan="9">
+                <td colspan="10">
                   <button type="button" onclick="addAssetRow(<?php echo $iid; ?>)"
                           style="background:none;border:1px dashed var(--cfp-border);border-radius:6px;
                                  color:var(--cfp-primary);font-size:0.75rem;padding:4px 10px;cursor:pointer;">
@@ -951,14 +967,14 @@ body { font-family:'Prompt',sans-serif; }
       </div>
       <?php } ?>
       <div class="m-card-row">
-        <input type="number"
+        <input type="text" inputmode="decimal"
                class="m-qty<?php echo ($qty === null) ? ' empty' : ''; ?>"
                id="mqty_<?php echo $iid; ?>"
                value="<?php echo ($qty !== null) ? $qty : ''; ?>"
-               placeholder="0.00" step="0.001" min="0"
+               placeholder="0.00"
                <?php echo $inputDisabled; ?>
-               oninput="calcCO2M(<?php echo $iid; ?>, <?php echo $catNo===3 ? ($mGWP??0) : ($ef ? $ef['EFValue'] : 0); ?>)"
-               onchange="calcCO2M(<?php echo $iid; ?>, <?php echo $catNo===3 ? ($mGWP??0) : ($ef ? $ef['EFValue'] : 0); ?>)">
+               oninput="cfpDecOnly(this);calcCO2M(<?php echo $iid; ?>, <?php echo $catNo===3 ? ($mGWP??0) : ($ef ? $ef['EFValue'] : 0); ?>)"
+               onchange="cfpDecOnly(this);calcCO2M(<?php echo $iid; ?>, <?php echo $catNo===3 ? ($mGWP??0) : ($ef ? $ef['EFValue'] : 0); ?>)">
         <span class="m-unit"><?php echo htmlspecialchars($item['UnitName'] ?? ''); ?></span>
         <span class="m-co2<?php echo ($co2 === null) ? ' na' : ''; ?>" id="mco2_<?php echo $iid; ?>">
           <?php echo ($co2 !== null) ? number_format($co2, 1) : '—'; ?>
@@ -1019,12 +1035,11 @@ body { font-family:'Prompt',sans-serif; }
       </div>
       <?php } ?>
     </div>
-
+  <?php } ?>
   </div><!-- /cat-content -->
   <?php $firstCat = false; } ?>
 
 </div><!-- /cfp-card -->
-<?php } ?>
 
 <!-- Sticky footer (mobile only) -->
 <?php if ($canEdit) { ?>
@@ -1079,6 +1094,14 @@ function switchCat(catNo) {
     var tab = document.getElementById('catTab' + catNo);
     if (el)  { el.style.display = ''; }
     if (tab) { tab.classList.add('active'); }
+}
+
+/* ── อนุญาตเฉพาะตัวเลข+จุดทศนิยม (ไม่ใช้ type=number กันปุ่ม scale ขึ้น-ลง) ── */
+function cfpDecOnly(el) {
+    var v = el.value.replace(/[^0-9.]/g, '');
+    var parts = v.split('.');
+    if (parts.length > 2) { v = parts[0] + '.' + parts.slice(1).join(''); }
+    el.value = v;
 }
 
 /* ── calcCO2 (desktop) ── */
@@ -1158,6 +1181,7 @@ function collectData() {
         var dataID = parseInt(el.dataset.dataid) || 0;
         var qtyEl  = document.getElementById('qty_' + rowKey) || document.getElementById('mqty_' + iid);
         var rmkEl  = document.getElementById('rmk_' + rowKey);
+        var costEl = document.getElementById('cost_' + rowKey);
         if (!qtyEl || qtyEl.disabled) { return; }
         var qty = qtyEl.value.trim();
         if (qty === '') { return; }
@@ -1168,9 +1192,11 @@ function collectData() {
         var assetType = assetOpt ? (assetOpt.dataset.type || '') : '';
         rows.push({
             DataID:    dataID,
+            RowKey:    rowKey,
             ItemID:    iid,
             Quantity:  parseFloat(qty),
             Remark:    rmkEl ? rmkEl.value.trim() : '',
+            Cost:      costEl && costEl.value.trim() !== '' ? parseFloat(costEl.value) : null,
             AssetID:   assetID,
             AssetType: assetType
         });
@@ -1205,11 +1231,12 @@ function addAssetRow(itemID) {
         '<td><div style="font-size:0.72rem;color:var(--cfp-text-muted);padding-left:14px;">↳ เพิ่มเติม ' +
             '<a href="#" onclick="removeAssetRow(\'' + rowKey + '\');return false;" style="color:#E05050;margin-left:4px;" title="ลบแถวนี้"><i class="bi bi-trash3"></i></a></div></td>' +
         '<td><select class="asset-select" id="asset_' + rowKey + '" onchange="' + assetOnChange + '">' + optHtml + '</select></td>' +
-        '<td><input type="number" class="qty-input empty" id="qty_' + rowKey + '" placeholder="0.00" step="0.001" min="0" ' +
-            'onchange="' + calcCall + '" oninput="' + calcCall + '"></td>' +
+        '<td><input type="text" inputmode="decimal" class="qty-input empty" id="qty_' + rowKey + '" placeholder="0.00" ' +
+            'onchange="cfpDecOnly(this);' + calcCall + '" oninput="cfpDecOnly(this);' + calcCall + '"></td>' +
         '<td></td>' +
         '<td></td>' +
         '<td><div class="co2-empty" id="co2_' + rowKey + '">—</div></td>' +
+        '<td><input type="text" inputmode="decimal" class="qty-input" style="width:100%;" id="cost_' + rowKey + '" placeholder="0.00" oninput="cfpDecOnly(this);"></td>' +
         '<td><input type="text" class="remark-input" id="rmk_' + rowKey + '" placeholder="หมายเหตุ"></td>' +
         '<td><a class="attach-link" href="#" onclick="openAttach(\'' + rowKey + '\');return false;"><i class="bi bi-paperclip"></i>แนบ</a></td>' +
         '<td></td>';
@@ -1267,7 +1294,7 @@ function saveDraft() {
         isSavingScope1 = false;
         if (res.success) {
             Swal.fire({ icon:'success', title:'บันทึกร่างสำเร็จ', timer:1500, showConfirmButton:false, customClass:{popup:'font-prompt'} })
-            .then(function(){ location.reload(); });
+            .then(function(){ uploadPendingEvidenceThenReload(res.savedRows); });
         } else {
             Swal.fire({ icon:'error', title:'บันทึกไม่สำเร็จ', text:res.msg, confirmButtonText:'ตกลง', customClass:{popup:'font-prompt'} });
         }
@@ -1313,7 +1340,7 @@ function confirmSubmit() {
             isSavingScope1 = false;
             if (res.success) {
                 Swal.fire({ icon:'success', title:'ส่งอนุมัติเรียบร้อย!', text:res.msg, timer:3000, timerProgressBar:true, showConfirmButton:true, confirmButtonText:'ตกลง', confirmButtonColor:'#2AABB8', customClass:{popup:'font-prompt'} })
-                .then(function(){ location.reload(); });
+                .then(function(){ uploadPendingEvidenceThenReload(res.savedRows); });
             } else {
                 Swal.fire({ icon:'error', title:'ส่งไม่สำเร็จ', text:res.msg, confirmButtonText:'ตกลง', customClass:{popup:'font-prompt'} });
             }
@@ -1325,9 +1352,133 @@ function confirmSubmit() {
     });
 }
 
-/* ── attach file ── */
-function openAttach(iid) {
-    Swal.fire({ icon:'info', title:'แนบไฟล์', text:'ยังใช้งานไม่ได้', confirmButtonText:'ตกลง', customClass:{popup:'font-prompt'} });
+/* ── attach file ──
+   ถ้าแถวยังไม่เคยบันทึก (dataID<=0) ให้ "แนบไฟล์รอไว้" ก่อน แล้วอัปโหลดจริงตอนกด บันทึกร่าง/ส่งอนุมัติ
+   ถ้าแถวบันทึกแล้ว (dataID>0) อัปโหลด/ลบไฟล์ได้ทันที */
+window.pendingEvidence = window.pendingEvidence || {};
+
+/* แสดงชื่อไฟล์ที่แนบรอไว้ + ปุ่มลบ (เลือกไฟล์ใหม่ได้โดยไม่ต้องรอบันทึกก่อน) */
+function renderPendingEvidenceLink(tr, rowKey, fileName) {
+    var link = tr.querySelector('.attach-link');
+    if (!link) { return; }
+    link.classList.add('attach-pending');
+    link.innerHTML =
+        '<i class="bi bi-paperclip"></i>' + fileName +
+        ' <span onclick="event.stopPropagation();removePendingEvidence(\'' + rowKey + '\');" ' +
+        'style="color:#E05050;margin-left:4px;cursor:pointer;" title="ลบไฟล์ที่เลือกไว้"><i class="bi bi-x-circle"></i></span>';
+}
+function removePendingEvidence(rowKey) {
+    delete window.pendingEvidence[rowKey];
+    var tr = document.querySelector('tr[data-row="' + rowKey + '"]') || document.querySelector('.m-card[data-row="' + rowKey + '"]')
+        || document.querySelector('tr[data-item="' + rowKey + '"]') || document.querySelector('.m-card[data-item="' + rowKey + '"]');
+    if (!tr) { return; }
+    var link = tr.querySelector('.attach-link');
+    if (link) {
+        link.classList.remove('attach-pending');
+        link.innerHTML = '<i class="bi bi-paperclip"></i>แนบ';
+    }
+}
+
+function openAttach(rowKey) {
+    var tr = document.querySelector('tr[data-row="' + rowKey + '"]') || document.querySelector('.m-card[data-row="' + rowKey + '"]');
+    var dataID = tr ? (parseInt(tr.dataset.dataid) || 0) : 0;
+
+    if (dataID <= 0) {
+        var fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.jpg,.jpeg,.png,.pdf';
+        fileInput.style.display = 'none';
+        document.body.appendChild(fileInput);
+        fileInput.addEventListener('change', function() {
+            var f = fileInput.files[0];
+            document.body.removeChild(fileInput);
+            if (!f) { return; }
+            window.pendingEvidence[rowKey] = f;
+            renderPendingEvidenceLink(tr, rowKey, f.name);
+        });
+        fileInput.click();
+        return;
+    }
+
+    var hasFile = tr.querySelector('.attach-done') !== null;
+    Swal.fire({
+        title: hasFile ? 'จัดการไฟล์แนบ' : 'แนบไฟล์หลักฐาน',
+        html:
+            '<input type="file" id="evdFileInput" class="form-control" accept=".jpg,.jpeg,.png,.pdf" style="margin-top:8px;">' +
+            '<div style="font-size:0.72rem;color:#888;margin-top:4px;">รองรับ .jpg .png .pdf ไม่เกิน 10 MB (1 ไฟล์ต่อแถว ไฟล์ใหม่จะแทนที่ไฟล์เดิม)</div>',
+        showCancelButton: true,
+        showDenyButton: hasFile,
+        confirmButtonText: 'อัปโหลด',
+        denyButtonText: 'ลบไฟล์เดิม',
+        cancelButtonText: 'ยกเลิก',
+        customClass: { popup: 'font-prompt' },
+        preConfirm: function() {
+            var f = document.getElementById('evdFileInput').files[0];
+            if (!f) { Swal.showValidationMessage('กรุณาเลือกไฟล์'); return false; }
+            return f;
+        }
+    }).then(function(result) {
+        if (result.isConfirmed) {
+            var fd = new FormData();
+            fd.append('action', 'upload');
+            fd.append('activity_id', dataID);
+            fd.append('scope', 'scope1');
+            fd.append('csrf_token', CSRF);
+            fd.append('file', result.value);
+            uploadEvidence(fd);
+        } else if (result.isDenied) {
+            var fd2 = new FormData();
+            fd2.append('action', 'delete');
+            fd2.append('activity_id', dataID);
+            fd2.append('scope', 'scope1');
+            fd2.append('csrf_token', CSRF);
+            uploadEvidence(fd2);
+        }
+    });
+}
+function uploadEvidence(fd) {
+    fetch('evidence_save.php', { method:'POST', body: fd })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+            if (res.success) {
+                Swal.fire({ icon:'success', title: res.msg, timer:1500, showConfirmButton:false, customClass:{popup:'font-prompt'} })
+                    .then(function(){ location.reload(); });
+            } else {
+                Swal.fire({ icon:'error', title:'ไม่สำเร็จ', text: res.msg, customClass:{popup:'font-prompt'} });
+            }
+        })
+        .catch(function(){
+            Swal.fire({ icon:'error', title:'เชื่อมต่อ server ไม่ได้', customClass:{popup:'font-prompt'} });
+        });
+}
+
+/* อัปโหลดไฟล์ที่แนบรอไว้ (pendingEvidence) หลังบันทึกสำเร็จ โดยจับคู่ rowKey กับ ActivityID ใหม่จาก savedRows */
+function uploadPendingEvidenceThenReload(savedRows) {
+    var pending = window.pendingEvidence || {};
+    var keys = Object.keys(pending);
+    if (!keys.length) { location.reload(); return; }
+
+    var rowKeyToId = {};
+    (savedRows || []).forEach(function(sr) { rowKeyToId[sr.rowKey] = sr.activityID; });
+
+    var uploads = keys.map(function(rowKey) {
+        var activityID = rowKeyToId[rowKey];
+        if (!activityID) { return Promise.resolve(); }
+        var fd = new FormData();
+        fd.append('action', 'upload');
+        fd.append('activity_id', activityID);
+        fd.append('scope', 'scope1');
+        fd.append('csrf_token', CSRF);
+        fd.append('file', pending[rowKey]);
+        return fetch('evidence_save.php', { method:'POST', body: fd });
+    });
+
+    Promise.all(uploads).then(function() {
+        window.pendingEvidence = {};
+        location.reload();
+    }).catch(function() {
+        location.reload();
+    });
 }
 
 /* ── ขอเพิ่มทรัพย์สินใหม่ (Data Entry ส่งคำขอให้ Admin ไปสร้างทะเบียนจริง) ── */

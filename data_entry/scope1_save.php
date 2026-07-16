@@ -127,14 +127,16 @@ if (!empty($deletedIds) && !empty($headerID)) {
 }
 
 /* ── Upsert ActivityData ── */
-$successCount=0;$errorCount=0;$errors=array();
+$successCount=0;$errorCount=0;$errors=array();$savedRows=array();
 $year=(int)substr($yearMonth,0,4);
 
 foreach($rows as $row){
     $itemID    =(int)($row['ItemID']??0);
     $qty       =isset($row['Quantity'])?(float)$row['Quantity']:null;
+    $cost      =(isset($row['Cost'])&&$row['Cost']!=='')?(float)$row['Cost']:null;
     $remark    =mb_substr(trim($row['Remark']??''),0,500);
     $activityID=(int)($row['DataID']??0);
+    $rowKey    =trim($row['RowKey']??'');
     $assetID   =(int)($row['AssetID']??0)?:(null);
     $assetType =mb_substr(trim($row['AssetType']??''),0,30)?:null;
     if($itemID<=0||$qty===null){$errorCount++;continue;}
@@ -184,27 +186,32 @@ foreach($rows as $row){
         /* UPDATE — รวม AssetID/AssetType */
         $res=sqlsrv_query($conn,
             "UPDATE CFP_ActivityData
-             SET Quantity=?,CO2e=?,Remark=?,AssetID=?,AssetType=?,
+             SET Quantity=?,CO2e=?,Remark=?,AssetID=?,AssetType=?,Cost=?,
                  UpdatedBy=?,UpdatedDate=GETDATE()
              WHERE ActivityID=? AND HeaderID=?",
-            array($qty,$co2e,$remark?:null,$assetID,$assetType,$userID,$activityID,$headerID));
+            array($qty,$co2e,$remark?:null,$assetID,$assetType,$cost,$userID,$activityID,$headerID));
     }else{
         /* INSERT รวม AssetID/AssetType */
         $res=sqlsrv_query($conn,
             "INSERT INTO CFP_ActivityData
              (HeaderID,SiteID,Scope,Category,ActivityName,Quantity,UnitID,EFID,CO2e,
-              InputMethod,IsActive,Remark,ItemID,CategoryNo,AssetID,AssetType,
+              InputMethod,IsActive,Remark,ItemID,CategoryNo,AssetID,AssetType,Cost,
               CreatedBy,CreatedDate)
-             VALUES (?,?,'Scope1',?,?,?,?,?,?,1,1,?,?,?,?,?,?,GETDATE())",
+             VALUES (?,?,'Scope1',?,?,?,?,?,?,1,1,?,?,?,?,?,?,?,GETDATE())",
             array($headerID,$siteID,
                   'CAT'.$catNo,$actName,
                   $qty,$unitID,$efID,$co2e,
                   $remark?:null,$itemID,$catNo,
-                  $assetID,$assetType,
+                  $assetID,$assetType,$cost,
                   $userID));
+        if($res!==false){
+            $rIdent=sqlsrv_query($conn,"SELECT @@IDENTITY AS NewID");
+            $rwIdent=$rIdent?sqlsrv_fetch_array($rIdent,SQLSRV_FETCH_ASSOC):null;
+            $activityID=$rwIdent?(int)$rwIdent['NewID']:0;
+        }
     }
 
-    if($res!==false){$successCount++;}
+    if($res!==false){$successCount++;if($rowKey!==''){$savedRows[]=array('rowKey'=>$rowKey,'activityID'=>$activityID);}}
     else{$errorCount++;$e=sqlsrv_errors();$errors[]=($e[0]['message']??'error').' ItemID='.$itemID;}
 
     logAction($conn,
@@ -222,4 +229,4 @@ $msg=($action==='submit')
     ?"ส่งอนุมัติ $successCount รายการเรียบร้อยแล้ว"
     :"บันทึกร่าง $successCount รายการเรียบร้อยแล้ว";
 if($errorCount>0){$msg.=" (มีข้อผิดพลาด $errorCount รายการ)";}
-jsonOut(true,$msg,array('saved'=>$successCount,'errors'=>$errorCount,'headerID'=>$headerID));
+jsonOut(true,$msg,array('saved'=>$successCount,'errors'=>$errorCount,'headerID'=>$headerID,'savedRows'=>$savedRows));

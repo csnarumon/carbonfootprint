@@ -17,7 +17,7 @@ $sheet       = $spreadsheet->getActiveSheet();
 $sheet->setTitle('ประเภทการปล่อยน้ำเสีย');
 
 /* ===== Header ===== */
-$headers = array('รหัสประเภท*', 'ชื่อประเภท*', 'คำอธิบาย', 'ลำดับแสดง');
+$headers = array('ชื่อประเภท*', 'คำอธิบาย', 'ลำดับแสดง');
 $col = 'A';
 foreach ($headers as $h) {
     $sheet->setCellValue($col . '1', $h);
@@ -31,11 +31,11 @@ $headerStyle = array(
         'startColor' => array('rgb' => '2AABB8'),
     ),
 );
-$sheet->getStyle('A1:D1')->applyFromArray($headerStyle);
+$sheet->getStyle('A1:C1')->applyFromArray($headerStyle);
 
 /* ===== แถวตัวอย่าง ===== */
 $sampleRows = array(
-    array('COD_IN', 'COD เข้าระบบ (mg/L)', 'ค่า COD ของน้ำเสียที่เข้าระบบบำบัด ใช้คำนวณการเกิด CH4', 1),
+    array('COD เข้าระบบ (mg/L)', 'ค่า COD ของน้ำเสียที่เข้าระบบบำบัด ใช้คำนวณการเกิด CH4', 1),
 );
 
 $rowNum = 2;
@@ -43,14 +43,12 @@ foreach ($sampleRows as $row) {
     $sheet->setCellValue('A' . $rowNum, $row[0]);
     $sheet->setCellValue('B' . $rowNum, $row[1]);
     $sheet->setCellValue('C' . $rowNum, $row[2]);
-    $sheet->setCellValue('D' . $rowNum, $row[3]);
     $rowNum++;
 }
 
-$sheet->getColumnDimension('A')->setWidth(18);
-$sheet->getColumnDimension('B')->setWidth(28);
-$sheet->getColumnDimension('C')->setWidth(40);
-$sheet->getColumnDimension('D')->setWidth(12);/* ===== ส่งไฟล์ออก ===== */
+$sheet->getColumnDimension('A')->setWidth(28);
+$sheet->getColumnDimension('B')->setWidth(40);
+$sheet->getColumnDimension('C')->setWidth(12);/* ===== ส่งไฟล์ออก ===== */
 $fileName = 'Template_WastewaterType_' . date('Ymd') . '.xlsx';
 
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

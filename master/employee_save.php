@@ -109,6 +109,8 @@ $commute   = cleanStr($_REQUEST['CommuteType'] ?? '', 100);
 $vtypeID   = (int)($_REQUEST['VehicleTypeID'] ?? 0) ?: null;
 $distKm    = is_numeric($_REQUEST['CommuteDistKm']    ?? '') ? (float)$_REQUEST['CommuteDistKm']    : null;
 $workDays  = is_numeric($_REQUEST['WorkDaysPerMonth']  ?? '') ? (int)$_REQUEST['WorkDaysPerMonth']    : null;
+$workDaysYear = is_numeric($_REQUEST['WorkDaysPerYear'] ?? '') ? (int)$_REQUEST['WorkDaysPerYear'] : null;
+$district  = cleanStr($_REQUEST['ResidenceDistrict'] ?? '', 100);
 $email     = cleanStr($_REQUEST['Email']   ?? '', 200);
 $phone     = cleanStr($_REQUEST['Phone']   ?? '', 50);
 $remark    = cleanStr($_REQUEST['Remark']  ?? '', 500);
@@ -129,11 +131,11 @@ if ($action === 'create') {
     $res = sqlsrv_query($conn,
         "INSERT INTO CFP_Employee
             (EmployeeCode, FullName, SiteID, DeptID, PositionID,
-             CommuteType, CommuteDistKm, WorkDaysPerMonth, VehicleTypeID,
+             CommuteType, CommuteDistKm, WorkDaysPerMonth, WorkDaysPerYear, ResidenceDistrict, VehicleTypeID,
              Email, Phone, Remark, IsActive, CreatedBy, CreatedDate)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?,GETDATE())",
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,GETDATE())",
         array($code, $name, $siteID, $deptID, $posID,
-              $commute ?: null, $distKm, $workDays, $vtypeID,
+              $commute ?: null, $distKm, $workDays, $workDaysYear, $district ?: null, $vtypeID,
               $email ?: null, $phone ?: null, $remark ?: null, $userID)
     );
 
@@ -177,12 +179,12 @@ if ($action === 'update') {
     $res = sqlsrv_query($conn,
         "UPDATE CFP_Employee SET
             EmployeeCode=?, FullName=?, SiteID=?, DeptID=?, PositionID=?,
-            CommuteType=?, CommuteDistKm=?, WorkDaysPerMonth=?, VehicleTypeID=?,
+            CommuteType=?, CommuteDistKm=?, WorkDaysPerMonth=?, WorkDaysPerYear=?, ResidenceDistrict=?, VehicleTypeID=?,
             Email=?, Phone=?, Remark=?,
             UpdatedBy=?, UpdatedDate=GETDATE()
          WHERE EmployeeID=?",
         array($code, $name, $siteID, $deptID, $posID,
-              $commute ?: null, $distKm, $workDays, $vtypeID,
+              $commute ?: null, $distKm, $workDays, $workDaysYear, $district ?: null, $vtypeID,
               $email ?: null, $phone ?: null, $remark ?: null,
               $userID, $id)
     );

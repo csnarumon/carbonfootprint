@@ -84,30 +84,16 @@ $rowNum = 1;  /* แถวที่ 1 คือ Header ไปแล้ว เร
 foreach ($rows as $row) {
     $rowNum++;
 
-    $code = excelCell($row, 0); // A: รหัส*
-    $name = excelCell($row, 1); // B: ชื่อ*
-    $desc = excelCell($row, 2); // C: คำอธิบาย
-    $sort = excelCell($row, 3); // D: ลำดับ
+    $name = excelCell($row, 0); // A: ชื่อ*
+    $desc = excelCell($row, 1); // B: คำอธิบาย
+    $sort = excelCell($row, 2); // C: ลำดับ
 
-    // ข้ามแถวที่ว่างทั้งรหัสและชื่อ
-    if ($code === '' && $name === '') {
-        continue;
-    }
-
-    // ตรวจสอบครบถ้วน
-    if ($code === '' || $name === '') {
-        $failCount++;
-        $errors[] = 'แถวที่ ' . $rowNum . ': กรุณากรอกรหัสและชื่อให้ครบ';
+    // ข้ามแถวที่ว่างชื่อ
+    if ($name === '') {
         continue;
     }
 
     $sort = ($sort !== '' && is_numeric($sort)) ? (int)$sort : 99;
-
-    // ตรวจสอบรหัสซ้ำ
-    if (isset($existingCodes[$code]) || isset($seenInFile[$code])) {
-        $skipCount++;
-        continue;
-    }
 
     // ตรวจสอบชื่อซ้ำ
     if (isset($existingNames[$name]) || isset($seenInFileNames[$name])) {
@@ -115,7 +101,9 @@ foreach ($rows as $row) {
         continue;
     }
 
-    // Insert โดยใช้รหัสที่อ่านได้ (ไม่ generate)
+    // รหัสสร้างโดยระบบเสมอ ไม่รับค่าจากไฟล์
+    $code = generateTypeCode($conn, CODE_PREFIX);
+
     $sql = "INSERT INTO CFP_WastewaterType
             (TypeCode, TypeName, Description, SortOrder, IsActive, CreatedBy, CreatedDate)
             VALUES (?, ?, ?, ?, 1, ?, GETDATE())";
@@ -129,7 +117,7 @@ foreach ($rows as $row) {
         continue;
     }
 
-    $seenInFile[$code] = true;
+    $existingCodes[$code] = true;
     $seenInFileNames[$name] = true;
     $successCount++;
 }

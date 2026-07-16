@@ -70,19 +70,16 @@ if ($action === 'delete') {
 
     /* ตรวจว่ามีการใช้งานอยู่ใน CFP_ElectricMeter หรือไม่ (เช็คผ่าน FK ElectricSourceID)
        หมายเหตุ: ใช้ @ กันไว้เผื่อคอลัมน์/ตารางยังไม่ตรงกับที่คาดไว้ ไม่ให้ทั้งหน้า error */
-    $hasUsage = false;
+    $usageCnt = 0;
     $res = @sqlsrv_query($conn, "SELECT COUNT(*) AS Cnt FROM CFP_ElectricMeter WHERE ElectricSourceID = ?", array($id));
     if ($res !== false) {
         $chk = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC);
-        $hasUsage = ($chk && $chk['Cnt'] > 0);
+        $usageCnt = $chk ? (int)$chk['Cnt'] : 0;
     }
 
-    if ($hasUsage) {
-        /* มีการใช้งานอยู่ → Soft delete (ปิดใช้งาน) แทนการลบจริง */ 
-        sqlsrv_query($conn, "UPDATE CFP_ElectricSourceType SET IsActive=0, UpdatedBy=?, UpdatedDate=GETDATE() WHERE SourceID=?",
-            array((int)$_SESSION['user_id'], $id));
-        logAction($conn, 'DATA_UPDATE', 'CFP_ElectricSourceType', $id, null, null, null, 'ปิดใช้งาน (มีการใช้งานอยู่)');
-        redirectWithToast('มีมิเตอร์ไฟฟ้าใช้แหล่งไฟฟ้านี้อยู่ ระบบปิดใช้งานให้แทนการลบ');
+    if ($usageCnt > 0) {
+        /* มีการใช้งานอยู่ → บล็อกการลบ ให้ผู้ใช้ไปกดปิดใช้งาน (Toggle) เองแทน */
+        redirectWithToast('ไม่สามารถลบได้ เนื่องจากมีมิเตอร์ไฟฟ้า ' . $usageCnt . ' รายการใช้แหล่งไฟฟ้านี้อยู่ — กรุณาปิดใช้งานแทน หรือย้ายไปใช้แหล่งอื่นก่อน', 'error');
     }
 
     $rDel = sqlsrv_query($conn, "DELETE FROM CFP_ElectricSourceType WHERE SourceID=?", array($id));
@@ -111,27 +108,14 @@ $gridValue = ($grid !== '' && is_numeric($grid)) ? (float)$grid : null;
 
 if ($action === 'create') {
 
-    $code = trim($_POST['SourceCode'] ?? '');
-    if ($code === '') {
-        redirectWithToast('กรุณากรอกรหัสแหล่งไฟฟ้า', 'error');
-    }
-
-    // ตรวจสอบรหัสซ้ำ
-    $checkSql = "SELECT COUNT(*) AS Cnt FROM CFP_ElectricSourceType WHERE SourceCode = ?";
-    $checkRes = sqlsrv_query($conn, $checkSql, array($code));
-    if ($checkRes === false) {
-        redirectWithToast('เกิดข้อผิดพลาดในการตรวจสอบรหัส', 'error');
-    }
-    $chkRow = sqlsrv_fetch_array($checkRes, SQLSRV_FETCH_ASSOC);
-    if ($chkRow && $chkRow['Cnt'] > 0) {
-        redirectWithToast('รหัสนี้มีอยู่แล้วในระบบ กรุณาใช้รหัสอื่น', 'error');
-    }
-
     // ตรวจสอบชื่อซ้ำ (มีอยู่แล้วในโค้ดเดิม)
     $resDup = sqlsrv_query($conn, "SELECT SourceID FROM CFP_ElectricSourceType WHERE SourceName=?", array($name));
     if (sqlsrv_fetch_array($resDup, SQLSRV_FETCH_ASSOC)) {
         redirectWithToast('ชื่อแหล่งไฟฟ้านี้มีอยู่แล้วในระบบ', 'error');
     }
+
+    /* รหัสสร้างโดยระบบเสมอ ไม่รับค่าจาก Form */
+    $code = generateSourceCode($conn, CODE_PREFIX);
 
     $sql = "INSERT INTO CFP_ElectricSourceType
             (SourceCode, SourceName, GridFactor, Description, SortOrder, IsActive, CreatedBy, CreatedDate)
@@ -139,6 +123,14 @@ if ($action === 'create') {
     $r = sqlsrv_query($conn, $sql, array(
         $code, $name, $gridValue, ($desc !== '' ? $desc : null), $sort, (int)$_SESSION['user_id']
     ));
+
+    /* กรณีชนกัน (race condition) ลองสร้างรหัสใหม่อีกครั้งเดียว */
+    if ($r === false) {
+        $code = generateSourceCode($conn, CODE_PREFIX);
+        $r = sqlsrv_query($conn, $sql, array(
+            $code, $name, $gridValue, ($desc !== '' ? $desc : null), $sort, (int)$_SESSION['user_id']
+        ));
+    }
 
     if ($r === false) {
         redirectWithToast('เกิดข้อผิดพลาดในการบันทึก', 'error');

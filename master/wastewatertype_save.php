@@ -19,6 +19,18 @@ function redirectWithToast($msg, $type = 'success') {
     exit;
 }
 
+/* ===== Helper: generate รหัสอัตโนมัติ รูปแบบ WWT-0001 ===== */
+function generateTypeCode($conn, $prefix) {
+    $res = sqlsrv_query($conn, "
+        SELECT MAX(CAST(SUBSTRING(TypeCode, LEN(?) + 2, 10) AS INT)) AS MaxNum
+        FROM CFP_WastewaterType
+        WHERE TypeCode LIKE ? + '-%'",
+        array($prefix, $prefix));
+    $row = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC);
+    $nextNum = ($row && $row['MaxNum'] !== null) ? ((int)$row['MaxNum'] + 1) : 1;
+    return $prefix . '-' . str_pad($nextNum, 4, '0', STR_PAD_LEFT);
+}
+
 verifyCsrf();
 
 $action = $_POST['action'] ?? '';
@@ -68,22 +80,19 @@ if ($action === 'delete') {
     if (!$id) { redirectWithToast('ไม่พบข้อมูลประเภทการปล่อยน้ำเสีย', 'error'); }
 
     /* ✅ ถ้าไม่มีตาราง CFP_Wastewater ให้ข้ามการตรวจสอบ */
-    $hasUsage = false;
+    $usageCnt = 0;
     $sql = "SELECT COUNT(*) AS Cnt FROM CFP_Wastewater WHERE WastewaterTypeID = ?";
     $res = sqlsrv_query($conn, $sql, array($id));
 
     if ($res !== false) {
         $chk = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC);
-        $hasUsage = ($chk && $chk['Cnt'] > 0);
+        $usageCnt = $chk ? (int)$chk['Cnt'] : 0;
     }
     // ถ้า $res === false → ตารางไม่มี → ถือว่าไม่มีการใช้งาน
 
-    if ($hasUsage) {
-        // มีการใช้งาน → ปิดใช้งานแทนการลบ
-        $updateSql = "UPDATE CFP_WastewaterType SET IsActive=0, UpdatedBy=?, UpdatedDate=GETDATE() WHERE TypeID=?";
-        $updateRes = sqlsrv_query($conn, $updateSql, array((int)$_SESSION['user_id'], $id));
-        logAction($conn, 'DATA_UPDATE', 'CFP_WastewaterType', $id, null, null, null, 'ปิดใช้งาน (มีการใช้งานอยู่)');
-        redirectWithToast('มีข้อมูลน้ำเสียใช้ประเภทนี้อยู่ ระบบปิดใช้งานให้แทนการลบ');
+    if ($usageCnt > 0) {
+        /* มีการใช้งานอยู่ → บล็อกการลบ ให้ผู้ใช้ไปกดปิดใช้งาน (Toggle) เองแทน */
+        redirectWithToast('ไม่สามารถลบได้ เนื่องจากมีข้อมูลน้ำเสีย ' . $usageCnt . ' รายการใช้ประเภทนี้อยู่ — กรุณาปิดใช้งานแทน หรือย้ายไปใช้ประเภทอื่นก่อน', 'error');
     }
 
     // ลบจริง
@@ -112,25 +121,12 @@ if ($name === '') {
 }
 
 /* ===========================
-   action=create (Manual Code)
+   action=create (Auto Code)
    =========================== */
 if ($action === 'create') {
 
-    $code = trim($_POST['TypeCode'] ?? '');
-    if ($code === '') {
-        redirectWithToast('กรุณากรอกรหัสประเภทการปล่อยน้ำเสีย', 'error');
-    }
-
-    // ตรวจสอบรหัสซ้ำ
-    $checkSql = "SELECT COUNT(*) AS Cnt FROM CFP_WastewaterType WHERE TypeCode = ?";
-    $checkRes = sqlsrv_query($conn, $checkSql, array($code));
-    if ($checkRes === false) {
-        redirectWithToast('เกิดข้อผิดพลาดในการตรวจสอบรหัส', 'error');
-    }
-    $chkRow = sqlsrv_fetch_array($checkRes, SQLSRV_FETCH_ASSOC);
-    if ($chkRow && $chkRow['Cnt'] > 0) {
-        redirectWithToast('รหัสนี้มีอยู่แล้วในระบบ กรุณาใช้รหัสอื่น', 'error');
-    }
+    /* รหัสสร้างโดยระบบเสมอ ไม่รับค่าจาก Form */
+    $code = generateTypeCode($conn, CODE_PREFIX);
 
     $sql = "INSERT INTO CFP_WastewaterType
             (TypeCode, TypeName, Description, SortOrder, IsActive, CreatedBy, CreatedDate)
@@ -138,6 +134,14 @@ if ($action === 'create') {
     $r = sqlsrv_query($conn, $sql, array(
         $code, $name, ($desc !== '' ? $desc : null), $sort, (int)$_SESSION['user_id']
     ));
+
+    /* กรณีชนกัน (race condition) ลองสร้างรหัสใหม่อีกครั้งเดียว */
+    if ($r === false) {
+        $code = generateTypeCode($conn, CODE_PREFIX);
+        $r = sqlsrv_query($conn, $sql, array(
+            $code, $name, ($desc !== '' ? $desc : null), $sort, (int)$_SESSION['user_id']
+        ));
+    }
 
     if ($r === false) {
         redirectWithToast('เกิดข้อผิดพลาดในการบันทึก', 'error');

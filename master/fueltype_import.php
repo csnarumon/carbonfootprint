@@ -3,8 +3,7 @@
    master/fueltype_import.php
    รับไฟล์ Excel (.xlsx) แล้วนำเข้าข้อมูลประเภทเชื้อเพลิง
    คอลัมน์ที่ต้องมีในไฟล์ (เรียงตามลำดับ):
-   A: ชื่อประเภท(EN)*  B: ชื่อประเภท(TH)*  C: กลุ่มเชื้อเพลิง
-   D: หน่วยปกติ  E: คำอธิบาย  F: ลำดับแสดง
+   A: ชื่อประเภท*  B: กลุ่มเชื้อเพลิง  C: หน่วยปกติ  D: คำอธิบาย  E: ลำดับแสดง
    (รหัสประเภทระบบสร้างให้อัตโนมัติ ไม่ต้องกรอกในไฟล์)
    ============================================== */
 require_once '../includes/auth_check.php';
@@ -84,32 +83,18 @@ $rowNum = 1;
 foreach ($rows as $row) {
     $rowNum++;
 
-    $code   = excelCell($row, 0); // คอลัมน์ A: รหัส*
-    $name = excelCell($row, 1); // คอลัมน์ B: ชื่อ*
-    $group  = excelCell($row, 2); // คอลัมน์ C: กลุ่มเชื้อเพลิง
-    $unit   = excelCell($row, 3); // คอลัมน์ D: หน่วยปกติ
-    $desc   = excelCell($row, 4); // คอลัมน์ E: คำอธิบาย
-    $sort   = excelCell($row, 5); // คอลัมน์ F: ลำดับแสดง
+    $name  = excelCell($row, 0); // คอลัมน์ A: ชื่อ*
+    $group = excelCell($row, 1); // คอลัมน์ B: กลุ่มเชื้อเพลิง
+    $unit  = excelCell($row, 2); // คอลัมน์ C: หน่วยปกติ
+    $desc  = excelCell($row, 3); // คอลัมน์ D: คำอธิบาย
+    $sort  = excelCell($row, 4); // คอลัมน์ E: ลำดับแสดง
 
-    // ข้ามแถวที่ว่างทั้งรหัส ชื่อEN และชื่อTH
-    if ($code === '' && $name === '') {
-        continue;
-    }
-
-    // ตรวจสอบความครบถ้วน
-    if ($code === '' || $name === '') {
-        $failCount++;
-        $errors[] = 'แถวที่ ' . $rowNum . ': กรุณากรอกรหัสและชื่อให้ครบ';
+    // ข้ามแถวที่ว่างชื่อ
+    if ($name === '') {
         continue;
     }
 
     $sort = ($sort !== '' && is_numeric($sort)) ? (int)$sort : 99;
-
-    // ตรวจสอบรหัสซ้ำ
-    if (isset($existingCodes[$code]) || isset($seenInFile[$code])) {
-        $skipCount++;
-        continue;
-    }
 
     // ตรวจสอบชื่อซ้ำ
     if (isset($existingNames[$name]) || isset($seenInFileNames[$name])) {
@@ -117,7 +102,9 @@ foreach ($rows as $row) {
         continue;
     }
 
-    // Insert โดยใช้รหัสที่อ่านได้ (ไม่ generate)
+    // รหัสสร้างโดยระบบเสมอ ไม่รับค่าจากไฟล์
+    $code = generateTypeCode($conn, CODE_PREFIX);
+
     $sql = "INSERT INTO CFP_FuelType
             (TypeCode, TypeName, FuelGroup, DefaultUnit, Description, SortOrder, IsActive, CreatedBy, CreatedDate)
             VALUES (?, ?, ?, ?, ?, ?, 1, ?, GETDATE())";
@@ -135,7 +122,7 @@ foreach ($rows as $row) {
         continue;
     }
 
-    $seenInFile[$code] = true;
+    $existingCodes[$code] = true;
     $seenInFileNames[$name] = true;
     $successCount++;
 }

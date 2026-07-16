@@ -67,6 +67,10 @@ $refTable = $refID ? 'CFP_ActivityItem' : null;
 $validUntilRaw = trim($_POST['ValidUntil'] ?? '');
 $validUntil    = ($validUntilRaw !== '' && strtotime($validUntilRaw)) ? $validUntilRaw : null;
 
+/* EffectiveDate — วันที่ค่า EF นี้เริ่มมีผลใช้จริง (ถ้าไม่กรอก ใช้วันนี้) */
+$effectiveDateRaw = trim($_POST['EffectiveDate'] ?? '');
+$effectiveDate     = ($effectiveDateRaw !== '' && strtotime($effectiveDateRaw)) ? $effectiveDateRaw : date('Y-m-d');
+
 /* Validate */
 if ($name    === '') { redirectWithToast('กรุณากรอกชื่อ EF', 'error'); }
 if ($scope   === '') { redirectWithToast('กรุณาเลือก Scope', 'error'); }
@@ -78,12 +82,12 @@ if ($action === 'create') {
     $code = generateEFCode($conn, $scope, $gasType);
     $sql  = "INSERT INTO CFP_EFValue
              (EFCode, EFName, EFValue, GWP, Unit, Scope, GasType,
-              YearApply, ValidUntil, SourceID, RefID, RefTable, IsActive, CreatedBy, CreatedDate)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?,GETDATE())";
+              YearApply, ValidUntil, EffectiveDate, SourceID, RefID, RefTable, IsActive, CreatedBy, CreatedDate)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,GETDATE())";
     $r = sqlsrv_query($conn, $sql, array(
         $code, $name, (float)$efVal, (float)$gwp,
         ($unit !== '' ? $unit : null), $scope, $gasType,
-        $year, $validUntil, $sourceID, $refID, $refTable,
+        $year, $validUntil, $effectiveDate, $sourceID, $refID, $refTable,
         (int)$_SESSION['user_id']
     ));
     if ($r === false) {
@@ -92,7 +96,7 @@ if ($action === 'create') {
         sqlsrv_query($conn, $sql, array(
             $code, $name, (float)$efVal, (float)$gwp,
             ($unit !== '' ? $unit : null), $scope, $gasType,
-            $year, $validUntil, $sourceID, $refID, $refTable,
+            $year, $validUntil, $effectiveDate, $sourceID, $refID, $refTable,
             (int)$_SESSION['user_id']
         ));
     }
@@ -101,24 +105,45 @@ if ($action === 'create') {
     redirectWithToast('เพิ่มค่า EF "'.$name.'" เรียบร้อย (รหัส '.$code.')');
 
 } elseif ($action === 'update') {
+    /* "แก้ไข" = สร้างเวอร์ชันใหม่ (revision) แทนการ UPDATE ทับของเดิม
+       เพื่อรักษา audit trail — ค่าที่เคยใช้คำนวณ CO2e ในเดือนก่อนหน้ายังอ้างอิงถึง EFID เดิมได้เสมอ
+       แถวเดิมถูกปิดใช้งาน (IsActive=0) และมี PreviousEFID ชี้ไปหาแถวใหม่เป็น chain ประวัติ */
     $id = (int)($_POST['EFID'] ?? 0);
     if (!$id) { redirectWithToast('ไม่พบข้อมูลที่ต้องการแก้ไข', 'error'); }
 
-    sqlsrv_query($conn,
-        "UPDATE CFP_EFValue
-         SET EFName=?, EFValue=?, GWP=?, Unit=?, Scope=?, GasType=?,
-             YearApply=?, ValidUntil=?, SourceID=?, RefID=?, RefTable=?, IsActive=?,
-             UpdatedBy=?, UpdatedDate=GETDATE()
-         WHERE EFID=?",
+    $resOld = sqlsrv_query($conn, "SELECT EFCode FROM CFP_EFValue WHERE EFID=?", array($id));
+    $oldRow = $resOld ? sqlsrv_fetch_array($resOld, SQLSRV_FETCH_ASSOC) : null;
+    if (!$oldRow) { redirectWithToast('ไม่พบค่า EF เดิม', 'error'); }
+    $code = $oldRow['EFCode'];
+
+    $resIns = sqlsrv_query($conn,
+        "INSERT INTO CFP_EFValue
+         (EFCode, EFName, EFValue, GWP, Unit, Scope, GasType,
+          YearApply, ValidUntil, EffectiveDate, SourceID, RefID, RefTable, IsActive,
+          PreviousEFID, CreatedBy, CreatedDate)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,GETDATE())",
         array(
-            $name, (float)$efVal, (float)$gwp,
+            $code, $name, (float)$efVal, (float)$gwp,
             ($unit !== '' ? $unit : null), $scope, $gasType,
-            $year, $validUntil, $sourceID, $refID, $refTable, $isActive,
-            (int)$_SESSION['user_id'], $id
+            $year, $validUntil, $effectiveDate, $sourceID, $refID, $refTable, $isActive,
+            $id, (int)$_SESSION['user_id']
         ));
-    logAction($conn, 'DATA_UPDATE', 'CFP_EFValue', $id, null, null, null,
-        'แก้ไข EF: '.$name.' ('.$year.')');
-    redirectWithToast('บันทึกการแก้ไขเรียบร้อย');
+    if ($resIns === false) {
+        $e = sqlsrv_errors();
+        redirectWithToast('บันทึกไม่สำเร็จ: '.($e[0]['message']??''), 'error');
+    }
+    $rIdent = sqlsrv_query($conn, "SELECT @@IDENTITY AS NewID");
+    $rwIdent = $rIdent ? sqlsrv_fetch_array($rIdent, SQLSRV_FETCH_ASSOC) : null;
+    $newID = $rwIdent ? (int)$rwIdent['NewID'] : 0;
+
+    /* ปิดใช้งานแถวเดิม (ไม่ลบ — เก็บไว้เป็นประวัติ) */
+    sqlsrv_query($conn,
+        "UPDATE CFP_EFValue SET IsActive=0, UpdatedBy=?, UpdatedDate=GETDATE() WHERE EFID=?",
+        array((int)$_SESSION['user_id'], $id));
+
+    logAction($conn, 'DATA_UPDATE', 'CFP_EFValue', $newID, null, null, null,
+        'แก้ไข EF (revision): '.$name.' ('.$year.') — EFID เดิม='.$id.' → EFID ใหม่='.$newID);
+    redirectWithToast('บันทึกการแก้ไขเรียบร้อย (สร้างเวอร์ชันใหม่ เก็บประวัติเดิมไว้)');
 
 } else {
     redirectWithToast('คำขอไม่ถูกต้อง', 'error');

@@ -61,6 +61,7 @@ while ($r = sqlsrv_fetch_array($resItem, SQLSRV_FETCH_ASSOC)) {
 }
 
 $scopeToNo = array('Scope1' => 1, 'Scope2' => 2, 'Scope3' => 3);
+$gasColors = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>'#B45309','CO2e'=>'#16A34A');
 
 $jsItems = array();
 foreach ($allItems as $it) {
@@ -217,16 +218,15 @@ foreach ($allItems as $it) {
           <table class="ef-table w-100" id="efTable">
             <thead>
               <tr>
-                <th style="width:36px;">#</th>
-                <th>รหัส EF</th>
-                <th>ชื่อ EF</th>
-                <th>Scope</th>
-                <th>Category</th>
-                <th>Gas</th>
-                <th>ค่า EF</th>
-                <th>ปี</th>
-                <th style="min-width:260px;">ผูกกับ Activity Item</th>
-                <th style="width:80px;">สถานะ</th>
+                <th style="width:32px;">#</th>
+                <th style="min-width:220px;">ชื่อ EF</th>
+                <th style="width:56px;">Scope</th>
+                <th style="width:90px;">Category</th>
+                <th style="width:56px;">Gas</th>
+                <th style="width:90px;">ค่า EF</th>
+                <th style="width:50px;">ปี</th>
+                <th style="min-width:220px;">ผูกกับ Activity Item</th>
+                <th style="width:70px;">สถานะ</th>
               </tr>
             </thead>
             <tbody>
@@ -242,16 +242,18 @@ foreach ($allItems as $it) {
                   data-category="<?php echo htmlspecialchars($ef['Category'] ?? ''); ?>"
                   data-efname="<?php echo htmlspecialchars(strtolower($ef['EFName'])); ?>">
                 <td style="color:var(--cfp-text-muted);font-size:0.72rem;"><?php echo $idx+1; ?></td>
-                <td><code style="font-size:0.75rem;"><?php echo htmlspecialchars($ef['EFCode']); ?></code></td>
-                <td style="max-width:200px;"><div style="font-weight:500;"><?php echo htmlspecialchars($ef['EFName']); ?></div></td>
+                <td>
+                  <div style="font-weight:500;white-space:nowrap;"><?php echo htmlspecialchars($ef['EFName']); ?></div>
+                  <code style="font-size:0.68rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($ef['EFCode']); ?></code>
+                </td>
                 <td>
                   <span style="font-size:0.7rem;padding:2px 8px;border-radius:10px;color:#fff;font-weight:600;background:<?php
                       echo ($scope==='Scope1'?'#2AABB8':($scope==='Scope2'?'#F59E0B':'#8B5CF6')); ?>;">
                     <?php echo $scope; ?>
                   </span>
                 </td>
-                <td style="font-size:0.78rem;color:var(--cfp-text-muted);"><?php echo $cat ?: '—'; ?></td>
-                <td><span style="font-size:0.7rem;padding:1px 7px;border-radius:8px;color:#fff;font-weight:600;background:#2AABB8;"><?php echo htmlspecialchars($ef['GasType'] ?? ''); ?></span></td>
+                <td style="font-size:0.66rem;color:var(--cfp-text-muted);white-space:nowrap;"><?php echo $cat ?: '—'; ?></td>
+                <td><span style="font-size:0.7rem;padding:1px 7px;border-radius:8px;color:#fff;font-weight:600;background:<?php echo $gasColors[$ef['GasType'] ?? ''] ?? '#888'; ?>;"><?php echo htmlspecialchars($ef['GasType'] ?? ''); ?></span></td>
                 <td style="font-family:monospace;font-size:0.82rem;color:var(--cfp-primary);font-weight:600;">
                   <?php echo number_format((float)$ef['EFValue'], 6); ?>
                   <?php if ($ef['Unit']) echo '<div style="font-size:0.68rem;color:var(--cfp-text-muted);">'.htmlspecialchars($ef['Unit']).'</div>'; ?>
@@ -271,13 +273,13 @@ foreach ($allItems as $it) {
                         foreach ($groups as $grp => $its) {
                             echo '<optgroup label="'.($grpLabels[$grp] ?? $grp).'">';
                             foreach ($its as $it) {
-                                echo '<option value="'.(int)$it['ItemID'].'">'.htmlspecialchars($it['ItemCode'].' — '.$it['ItemName']).'</option>';
+                                echo '<option value="'.(int)$it['ItemID'].'">'.htmlspecialchars($it['ItemName']).'</option>';
                             }
                             echo '</optgroup>';
                         }
                     } else {
                         foreach ($itemsForScope as $it) {
-                            echo '<option value="'.(int)$it['ItemID'].'">'.htmlspecialchars($it['ItemCode'].' — '.$it['ItemName']).'</option>';
+                            echo '<option value="'.(int)$it['ItemID'].'">'.htmlspecialchars($it['ItemName']).'</option>';
                         }
                     }
                     ?>
@@ -347,13 +349,12 @@ foreach ($allItems as $it) {
             <table class="ef-table w-100" id="linkedTable">
               <thead>
                 <tr>
-                  <th style="width:40px;"><i class="bi bi-check2-square"></i></th>
-                  <th>รหัส EF</th>
-                  <th>ชื่อ EF</th>
-                  <th>Scope</th>
-                  <th>ค่า EF</th>
-                  <th>ปี</th>
-                  <th>ผูกกับ Activity Item</th>
+                  <th style="width:36px;"><i class="bi bi-check2-square"></i></th>
+                  <th style="min-width:220px;">ชื่อ EF</th>
+                  <th style="width:56px;">Scope</th>
+                  <th style="width:90px;">ค่า EF</th>
+                  <th style="width:50px;">ปี</th>
+                  <th style="min-width:220px;">ผูกกับ Activity Item</th>
                 </tr>
               </thead>
               <tbody>
@@ -377,8 +378,10 @@ foreach ($allItems as $it) {
                     <input type="checkbox" class="chk-unlink" value="<?php echo $efid; ?>"
                            onchange="onUnlinkCheck(this)">
                   </td>
-                  <td><code style="font-size:0.75rem;"><?php echo htmlspecialchars($ef['EFCode']); ?></code></td>
-                  <td style="max-width:200px;"><div style="font-weight:500;"><?php echo htmlspecialchars($ef['EFName']); ?></div></td>
+                  <td>
+                    <div style="font-weight:500;white-space:nowrap;"><?php echo htmlspecialchars($ef['EFName']); ?></div>
+                    <code style="font-size:0.68rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($ef['EFCode']); ?></code>
+                  </td>
                   <td>
                     <span style="font-size:0.7rem;padding:2px 8px;border-radius:10px;color:#fff;font-weight:600;background:<?php
                         echo ($scope==='Scope1'?'#2AABB8':($scope==='Scope2'?'#F59E0B':'#8B5CF6')); ?>;">
@@ -687,6 +690,8 @@ function appendToSection1(srcTr) {
     var year     = srcTr.dataset.year     || '';
 
     var scopeColor = scope === 'Scope1' ? '#2AABB8' : (scope === 'Scope2' ? '#F59E0B' : '#8B5CF6');
+    var GAS_COLORS = { CO2:'#3B82F6', CH4:'#EC4899', N2O:'#84CC16', HFCs:'#B45309', CO2e:'#16A34A' };
+    var gasColor = GAS_COLORS[gasType] || '#888';
 
     /* สร้าง dropdown options filter ตาม scopeNo */
     var opts = '<option value="">— ไม่ผูก —</option>';
@@ -722,10 +727,10 @@ function appendToSection1(srcTr) {
     tr.innerHTML =
         '<td style="color:var(--cfp-text-muted);font-size:0.72rem;">' + rowCount + '</td>' +
         '<td><code style="font-size:0.75rem;">' + efcode + '</code></td>' +
-        '<td style="max-width:200px;"><div style="font-weight:500;">' + efname + '</div></td>' +
+        '<td><div style="font-weight:500;white-space:nowrap;">' + efname + '</div></td>' +
         '<td><span style="font-size:0.7rem;padding:2px 8px;border-radius:10px;color:#fff;font-weight:600;background:' + scopeColor + ';">' + scope + '</span></td>' +
-        '<td style="font-size:0.78rem;color:var(--cfp-text-muted);">' + (cat || '—') + '</td>' +
-        '<td><span style="font-size:0.7rem;padding:1px 7px;border-radius:8px;color:#fff;font-weight:600;background:#2AABB8;">' + gasType + '</span></td>' +
+        '<td style="font-size:0.66rem;color:var(--cfp-text-muted);white-space:nowrap;">' + (cat || '—') + '</td>' +
+        '<td><span style="font-size:0.7rem;padding:1px 7px;border-radius:8px;color:#fff;font-weight:600;background:' + gasColor + ';">' + gasType + '</span></td>' +
         '<td style="font-family:monospace;font-size:0.82rem;color:var(--cfp-primary);font-weight:600;">' +
             efval.toFixed(6) +
             (unit ? '<div style="font-size:0.68rem;color:var(--cfp-text-muted);">' + unit + '</div>' : '') +

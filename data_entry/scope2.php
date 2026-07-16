@@ -191,7 +191,7 @@ $hdrStatus = -1;
             if (!empty($hdrRow['ResponsibleDeptID'])) { $myDeptID = (int)$hdrRow['ResponsibleDeptID']; }
             $params = array_merge(array($hdrID), $itemIDs);
             $resData = @sqlsrv_query($conn,
-                "SELECT ActivityID AS DataID, ItemID, Quantity, Remark, EvidenceFile, AssetID, AssetType
+                "SELECT ActivityID AS DataID, ItemID, Quantity, Remark, EvidenceFile, AssetID, AssetType, Cost
                  FROM CFP_ActivityData
                  WHERE HeaderID=? AND ItemID IN ($ph) AND IsActive=1",
                 $params);
@@ -541,12 +541,13 @@ body { font-family:'Prompt',sans-serif; }
       <thead>
         <tr>
           <th style="width:30px;">#</th>
-          <th>รายการกิจกรรม</th>
-          <th style="width:150px;">ทรัพย์สิน</th>
+          <th style="min-width:260px;">รายการกิจกรรม</th>
+          <th style="width:220px;">ทรัพย์สิน</th>
           <th style="width:130px;">ปริมาณ</th>
           <th style="width:60px;">หน่วย</th>
           <th style="width:140px;">ค่า EF</th>
           <th style="width:120px;">kgCO₂e</th>
+          <th style="width:45px;">ค่าใช้จ่าย (บาท)</th>
           <th style="width:120px;">หมายเหตุ</th>
           <th style="width:70px;">แนบ</th>
           <th style="width:90px;">สถานะ</th>
@@ -611,20 +612,19 @@ body { font-family:'Prompt',sans-serif; }
           <?php } ?>
         </td>
         <td>
-          <input type="number"
+          <input type="text" inputmode="decimal"
                  class="<?php echo $qtyClass; ?>"
                  id="qty_<?php echo $iid; ?>"
                  value="<?php echo ($qty !== null) ? $qty : ''; ?>"
                  placeholder="0.00"
-                 step="0.001" min="0"
                  <?php echo $inputDisabled; ?>
-                 onchange="calcCO2(<?php echo $iid; ?>, <?php echo $ef ? $ef['EFValue'] : 0; ?>)"
-                 oninput="calcCO2(<?php echo $iid; ?>, <?php echo $ef ? $ef['EFValue'] : 0; ?>)">
+                 onchange="cfpDecOnly(this);calcCO2(<?php echo $iid; ?>, <?php echo $ef ? $ef['EFValue'] : 0; ?>)"
+                 oninput="cfpDecOnly(this);calcCO2(<?php echo $iid; ?>, <?php echo $ef ? $ef['EFValue'] : 0; ?>)">
         </td>
         <td style="font-size:0.78rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($item['UnitName'] ?? ''); ?></td>
         <td>
           <?php if ($ef) { ?>
-          <span class="ef-badge"><?php echo number_format((float)$ef['EFValue'], 4); ?> kgCO₂e/<?php echo htmlspecialchars($item['UnitName'] ?? ''); ?></span>
+          <span class="ef-badge"><?php echo number_format((float)$ef['EFValue'], 4); ?> kgCO₂e</span>
           <div style="font-size:0.68rem;color:var(--cfp-text-muted);margin-top:2px;"><?php echo htmlspecialchars($ef['SourceCode'] ?? ''); ?> <?php echo $ef['YearApply'] ?? ''; ?></div>
           <?php } else { ?><span style="font-size:0.75rem;color:var(--cfp-text-muted);">ไม่มี EF</span><?php } ?>
         </td>
@@ -635,6 +635,13 @@ body { font-family:'Prompt',sans-serif; }
           <?php if ($co2 !== null) { ?>
           <div style="font-size:0.68rem;color:var(--cfp-text-muted);">= <?php echo number_format($co2/1000, 4); ?> tCO₂e</div>
           <?php } ?>
+        </td>
+        <td>
+          <input type="text" inputmode="decimal" class="qty-input" style="width:100%;"
+                 id="cost_<?php echo $iid; ?>" oninput="cfpDecOnly(this);"
+                 value="<?php echo ($d && $d['Cost'] !== null) ? (float)$d['Cost'] : ''; ?>"
+                 placeholder="0.00"
+                 <?php echo $inputDisabled; ?>>
         </td>
         <td>
           <input type="text" class="remark-input"
@@ -710,14 +717,14 @@ body { font-family:'Prompt',sans-serif; }
         <?php if ($locked) { echo ' 🔒'; } ?>
       </div>
       <div class="m-card-row">
-        <input type="number"
+        <input type="text" inputmode="decimal"
                class="m-qty<?php echo ($qty === null) ? ' empty' : ''; ?>"
                id="mqty_<?php echo $iid; ?>"
                value="<?php echo ($qty !== null) ? $qty : ''; ?>"
-               placeholder="0.00" step="0.001" min="0"
+               placeholder="0.00"
                <?php echo $inputDisabled; ?>
-               oninput="calcCO2M(<?php echo $iid; ?>, <?php echo $ef ? $ef['EFValue'] : 0; ?>)"
-               onchange="calcCO2M(<?php echo $iid; ?>, <?php echo $ef ? $ef['EFValue'] : 0; ?>)">
+               oninput="cfpDecOnly(this);calcCO2M(<?php echo $iid; ?>, <?php echo $ef ? $ef['EFValue'] : 0; ?>)"
+               onchange="cfpDecOnly(this);calcCO2M(<?php echo $iid; ?>, <?php echo $ef ? $ef['EFValue'] : 0; ?>)">
         <span class="m-unit"><?php echo htmlspecialchars($item['UnitName'] ?? ''); ?></span>
         <span class="m-co2<?php echo ($co2 === null) ? ' na' : ''; ?>" id="mco2_<?php echo $iid; ?>">
           <?php echo ($co2 !== null) ? number_format($co2, 1) : '—'; ?>
@@ -831,6 +838,14 @@ function switchCat(catNo) {
     if (tab) { tab.classList.add('active'); }
 }
 
+/* ── อนุญาตเฉพาะตัวเลข+จุดทศนิยม (ไม่ใช้ type=number กันปุ่ม scale ขึ้น-ลง) ── */
+function cfpDecOnly(el) {
+    var v = el.value.replace(/[^0-9.]/g, '');
+    var parts = v.split('.');
+    if (parts.length > 2) { v = parts[0] + '.' + parts.slice(1).join(''); }
+    el.value = v;
+}
+
 /* ── calcCO2 (desktop) ── */
 function calcCO2(iid, ef) {
     var input = document.getElementById('qty_' + iid);
@@ -884,6 +899,7 @@ function collectData() {
         var dataID = parseInt(tr.dataset.dataid) || 0;
         var qtyEl  = document.getElementById('qty_' + iid)  || document.getElementById('mqty_' + iid);
         var rmkEl  = document.getElementById('rmk_' + iid);
+        var costEl = document.getElementById('cost_' + iid);
         if (!qtyEl || qtyEl.disabled) { return; }
         var qty = qtyEl.value.trim();
         if (qty === '') { return; }
@@ -894,9 +910,11 @@ function collectData() {
         var assetType = assetOpt ? (assetOpt.dataset.type || '') : '';
         rows.push({
             DataID:    dataID,
+            RowKey:    String(iid),
             ItemID:    iid,
             Quantity:  parseFloat(qty),
             Remark:    rmkEl ? rmkEl.value.trim() : '',
+            Cost:      costEl && costEl.value.trim() !== '' ? parseFloat(costEl.value) : null,
             AssetID:   assetID,
             AssetType: assetType
         });
@@ -929,7 +947,7 @@ function saveDraft() {
         isSavingScope2 = false;
         if (res.success) {
             Swal.fire({ icon:'success', title:'บันทึกร่างสำเร็จ', timer:1500, showConfirmButton:false, customClass:{popup:'font-prompt'} })
-            .then(function(){ location.reload(); });
+            .then(function(){ uploadPendingEvidenceThenReload(res.savedRows); });
         } else {
             Swal.fire({ icon:'error', title:'บันทึกไม่สำเร็จ', text:res.msg, confirmButtonText:'ตกลง', customClass:{popup:'font-prompt'} });
         }
@@ -975,7 +993,7 @@ function confirmSubmit() {
             isSavingScope2 = false;
             if (res.success) {
                 Swal.fire({ icon:'success', title:'ส่งอนุมัติเรียบร้อย!', text:res.msg, timer:3000, timerProgressBar:true, showConfirmButton:true, confirmButtonText:'ตกลง', confirmButtonColor:'#2AABB8', customClass:{popup:'font-prompt'} })
-                .then(function(){ location.reload(); });
+                .then(function(){ uploadPendingEvidenceThenReload(res.savedRows); });
             } else {
                 Swal.fire({ icon:'error', title:'ส่งไม่สำเร็จ', text:res.msg, confirmButtonText:'ตกลง', customClass:{popup:'font-prompt'} });
             }
@@ -987,9 +1005,133 @@ function confirmSubmit() {
     });
 }
 
-/* ── attach file ── */
+/* ── attach file ──
+   ถ้าแถวยังไม่เคยบันทึก (dataID<=0) ให้ "แนบไฟล์รอไว้" ก่อน แล้วอัปโหลดจริงตอนกด บันทึกร่าง/ส่งอนุมัติ
+   ถ้าแถวบันทึกแล้ว (dataID>0) อัปโหลด/ลบไฟล์ได้ทันที */
+window.pendingEvidence = window.pendingEvidence || {};
+
+/* แสดงชื่อไฟล์ที่แนบรอไว้ + ปุ่มลบ (เลือกไฟล์ใหม่ได้โดยไม่ต้องรอบันทึกก่อน) */
+function renderPendingEvidenceLink(tr, rowKey, fileName) {
+    var link = tr.querySelector('.attach-link');
+    if (!link) { return; }
+    link.classList.add('attach-pending');
+    link.innerHTML =
+        '<i class="bi bi-paperclip"></i>' + fileName +
+        ' <span onclick="event.stopPropagation();removePendingEvidence(\'' + rowKey + '\');" ' +
+        'style="color:#E05050;margin-left:4px;cursor:pointer;" title="ลบไฟล์ที่เลือกไว้"><i class="bi bi-x-circle"></i></span>';
+}
+function removePendingEvidence(rowKey) {
+    delete window.pendingEvidence[rowKey];
+    var tr = document.querySelector('tr[data-item="' + rowKey + '"]') || document.querySelector('.m-card[data-item="' + rowKey + '"]');
+    if (!tr) { return; }
+    var link = tr.querySelector('.attach-link');
+    if (link) {
+        link.classList.remove('attach-pending');
+        link.innerHTML = '<i class="bi bi-paperclip"></i>แนบ';
+    }
+}
+
 function openAttach(iid) {
-    Swal.fire({ icon:'info', title:'แนบไฟล์', text:'ยังใช้งานไม่ได้', confirmButtonText:'ตกลง', customClass:{popup:'font-prompt'} });
+    var tr = document.querySelector('tr[data-item="' + iid + '"]') || document.querySelector('.m-card[data-item="' + iid + '"]');
+    var dataID = tr ? (parseInt(tr.dataset.dataid) || 0) : 0;
+    var rowKey = String(iid);
+
+    if (dataID <= 0) {
+        var fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.jpg,.jpeg,.png,.pdf';
+        fileInput.style.display = 'none';
+        document.body.appendChild(fileInput);
+        fileInput.addEventListener('change', function() {
+            var f = fileInput.files[0];
+            document.body.removeChild(fileInput);
+            if (!f) { return; }
+            window.pendingEvidence[rowKey] = f;
+            renderPendingEvidenceLink(tr, rowKey, f.name);
+        });
+        fileInput.click();
+        return;
+    }
+
+    var hasFile = tr.querySelector('.attach-done') !== null;
+    Swal.fire({
+        title: hasFile ? 'จัดการไฟล์แนบ' : 'แนบไฟล์หลักฐาน',
+        html:
+            '<input type="file" id="evdFileInput" class="form-control" accept=".jpg,.jpeg,.png,.pdf" style="margin-top:8px;">' +
+            '<div style="font-size:0.72rem;color:#888;margin-top:4px;">รองรับ .jpg .png .pdf ไม่เกิน 10 MB (1 ไฟล์ต่อแถว ไฟล์ใหม่จะแทนที่ไฟล์เดิม)</div>',
+        showCancelButton: true,
+        showDenyButton: hasFile,
+        confirmButtonText: 'อัปโหลด',
+        denyButtonText: 'ลบไฟล์เดิม',
+        cancelButtonText: 'ยกเลิก',
+        customClass: { popup: 'font-prompt' },
+        preConfirm: function() {
+            var f = document.getElementById('evdFileInput').files[0];
+            if (!f) { Swal.showValidationMessage('กรุณาเลือกไฟล์'); return false; }
+            return f;
+        }
+    }).then(function(result) {
+        if (result.isConfirmed) {
+            var fd = new FormData();
+            fd.append('action', 'upload');
+            fd.append('activity_id', dataID);
+            fd.append('scope', 'scope2');
+            fd.append('csrf_token', CSRF);
+            fd.append('file', result.value);
+            uploadEvidence(fd);
+        } else if (result.isDenied) {
+            var fd2 = new FormData();
+            fd2.append('action', 'delete');
+            fd2.append('activity_id', dataID);
+            fd2.append('scope', 'scope2');
+            fd2.append('csrf_token', CSRF);
+            uploadEvidence(fd2);
+        }
+    });
+}
+function uploadEvidence(fd) {
+    fetch('evidence_save.php', { method:'POST', body: fd })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+            if (res.success) {
+                Swal.fire({ icon:'success', title: res.msg, timer:1500, showConfirmButton:false, customClass:{popup:'font-prompt'} })
+                    .then(function(){ location.reload(); });
+            } else {
+                Swal.fire({ icon:'error', title:'ไม่สำเร็จ', text: res.msg, customClass:{popup:'font-prompt'} });
+            }
+        })
+        .catch(function(){
+            Swal.fire({ icon:'error', title:'เชื่อมต่อ server ไม่ได้', customClass:{popup:'font-prompt'} });
+        });
+}
+
+/* อัปโหลดไฟล์ที่แนบรอไว้ (pendingEvidence) หลังบันทึกสำเร็จ โดยจับคู่ rowKey กับ ActivityID ใหม่จาก savedRows */
+function uploadPendingEvidenceThenReload(savedRows) {
+    var pending = window.pendingEvidence || {};
+    var keys = Object.keys(pending);
+    if (!keys.length) { location.reload(); return; }
+
+    var rowKeyToId = {};
+    (savedRows || []).forEach(function(sr) { rowKeyToId[sr.rowKey] = sr.activityID; });
+
+    var uploads = keys.map(function(rowKey) {
+        var activityID = rowKeyToId[rowKey];
+        if (!activityID) { return Promise.resolve(); }
+        var fd = new FormData();
+        fd.append('action', 'upload');
+        fd.append('activity_id', activityID);
+        fd.append('scope', 'scope2');
+        fd.append('csrf_token', CSRF);
+        fd.append('file', pending[rowKey]);
+        return fetch('evidence_save.php', { method:'POST', body: fd });
+    });
+
+    Promise.all(uploads).then(function() {
+        window.pendingEvidence = {};
+        location.reload();
+    }).catch(function() {
+        location.reload();
+    });
 }
 
 /* ── ขอเพิ่มทรัพย์สินใหม่ (Data Entry ส่งคำขอให้ Admin ไปสร้างทะเบียนจริง) ── */

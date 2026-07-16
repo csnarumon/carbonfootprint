@@ -27,7 +27,8 @@ $res = sqlsrv_query($conn,"
     SELECT c.CoolingID,c.CoolingCode,c.CoolingName,c.SiteID,s.SiteName,
            c.RefrigerantTypeID,t.TypeName AS RefTypeName,
            c.Brand,c.Model,c.SerialNo,c.Capacity,c.CapacityUnit,c.PowerKW,t.GWP100,
-           c.RefrigerantCharge,c.InstallDate,c.Location,c.Remark,c.IsActive
+           c.RefrigerantCharge,c.RefrigerantChargeGram,c.LeakRateInstall,c.LeakRateOperation,c.DisposalRemainPct,
+           c.InstallDate,c.Location,c.Remark,c.IsActive
     FROM CFP_Cooling c
     LEFT JOIN CFP_Site s ON s.SiteID=c.SiteID
     LEFT JOIN CFP_RefrigerantType t ON t.TypeID=c.RefrigerantTypeID
@@ -75,6 +76,10 @@ foreach ($rows as $r) {
         'serial'  => $r['SerialNo']??'', 'cap'     => $r['Capacity']?(float)$r['Capacity']:'',
         'capunit' => $r['CapacityUnit']??'',
         'charge'  => $r['RefrigerantCharge']?(float)$r['RefrigerantCharge']:'',
+        'chargeg' => $r['RefrigerantChargeGram']!==null?(float)$r['RefrigerantChargeGram']:'',
+        'leakinstall' => $r['LeakRateInstall']!==null?(float)$r['LeakRateInstall']:'',
+        'leakop'  => $r['LeakRateOperation']!==null?(float)$r['LeakRateOperation']:'',
+        'disprem' => $r['DisposalRemainPct']!==null?(float)$r['DisposalRemainPct']:'',
         'install' => $r['InstallDate'] ? date_format($r['InstallDate'],'Y-m-d') : '',
         'loc'     => $r['Location']??'', 'remark'  => $r['Remark']??'',
         'powerKW' => $r['PowerKW'] !== null ? (float)$r['PowerKW'] : '',
@@ -341,6 +346,15 @@ body{font-family:'Prompt',sans-serif;}
 
   <div class="col-md-4"><label class="form-label">ปริมาณสารทำความเย็น (kg)</label>
     <input type="number" class="form-control" name="RefrigerantCharge" id="fCharge" step="0.0001" min="0" style="font-family:'Prompt',sans-serif"></div>
+  <div class="col-md-4"><label class="form-label">ปริมาณสารทำความเย็น (กรัม)</label>
+    <input type="number" class="form-control" name="RefrigerantChargeGram" id="fChargeG" step="0.01" min="0" style="font-family:'Prompt',sans-serif"></div>
+
+  <div class="col-md-4"><label class="form-label">อัตรารั่วไหลช่วงติดตั้ง (%)</label>
+    <input type="number" class="form-control" name="LeakRateInstall" id="fLeakInstall" step="0.01" min="0" max="100" style="font-family:'Prompt',sans-serif"></div>
+  <div class="col-md-4"><label class="form-label">อัตรารั่วไหลช่วงใช้งาน (%/ปี)</label>
+    <input type="number" class="form-control" name="LeakRateOperation" id="fLeakOp" step="0.01" min="0" max="100" style="font-family:'Prompt',sans-serif"></div>
+  <div class="col-md-4"><label class="form-label">สารคงเหลือช่วงกำจัดทิ้ง (%)</label>
+    <input type="number" class="form-control" name="DisposalRemainPct" id="fDisposalRemain" step="0.01" min="0" max="100" style="font-family:'Prompt',sans-serif"></div>
 
   <div class="col-12"><label class="form-label">หมายเหตุ</label>
     <textarea class="form-control" name="Remark" id="fRemark" rows="2" maxlength="500" style="font-family:'Prompt',sans-serif;resize:none"></textarea></div>
@@ -774,6 +788,10 @@ function openModal(id) {
         document.getElementById('fCap').value = d.cap || '';
         document.getElementById('fCapUnit').value = d.capunit || '';
         document.getElementById('fCharge').value = d.charge || '';
+        document.getElementById('fChargeG').value = d.chargeg || '';
+        document.getElementById('fLeakInstall').value = d.leakinstall || '';
+        document.getElementById('fLeakOp').value = d.leakop || '';
+        document.getElementById('fDisposalRemain').value = d.disprem || '';
         document.getElementById('fInstall').value = d.install || '';
         document.getElementById('fLoc').value = d.loc || '';
         document.getElementById('fPowerKW').value = d.powerKW || '';

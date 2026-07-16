@@ -55,6 +55,17 @@ if ($resUsed !== false) {
     $rowUsed  = sqlsrv_fetch_array($resUsed, SQLSRV_FETCH_ASSOC);
     $usedCount = $rowUsed ? (int)$rowUsed['Cnt'] : 0;
 }
+
+/* จำนวนที่นำไปใช้จริงแยกตาม TypeID — ใช้ตัดสินใจว่าประเภทไหนลบได้ปลอดภัย */
+$usageByType = array();
+$resUsageDetail = @sqlsrv_query($conn, "
+    SELECT WastewaterTypeID, COUNT(*) AS Cnt FROM CFP_Wastewater
+    WHERE WastewaterTypeID IS NOT NULL GROUP BY WastewaterTypeID");
+if ($resUsageDetail) {
+    while ($rU = sqlsrv_fetch_array($resUsageDetail, SQLSRV_FETCH_ASSOC)) {
+        $usageByType[(int)$rU['WastewaterTypeID']] = (int)$rU['Cnt'];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -186,8 +197,11 @@ if ($resUsed !== false) {
 
         <div class="cfp-page-toolbar mb-3" style="margin-bottom:14px;">
           <div class="d-flex gap-2 flex-grow-1" style="max-width:560px;">
-            <input type="text" id="fltKeyword" class="form-control font-prompt" style="font-size:0.85rem;"
+            <div class="cfp-search-wrap flex-grow-1" style="position:relative;">
+            <input type="text" id="fltKeyword" class="form-control font-prompt" style="font-size:0.85rem;padding-right:28px;"
                    placeholder="ค้นหารหัส / ชื่อประเภท / คำอธิบาย...">
+            <button type="button" class="cfp-search-clear" onclick="clearKeyword()" title="ล้างคำค้นหา" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;padding:2px;line-height:1;color:var(--cfp-text-muted,#888);font-size:0.95rem;cursor:pointer;z-index:2;"><i class="bi bi-x-circle-fill"></i></button>
+            </div>
             <select id="fltStatus" class="form-select font-prompt" style="font-size:0.85rem;max-width:160px;">
               <option value="">สถานะทั้งหมด</option>
               <option value="1">ใช้งาน</option>
@@ -211,24 +225,39 @@ if ($resUsed !== false) {
             <thead>
               <tr>
                 <th style="width:40px;">#</th>
-                <th style="width:120px;">รหัส</th>
-                <th>ชื่อประเภท</th>
+                <th style="min-width:180px;">ชื่อประเภท</th>
                 <th>คำอธิบาย</th>
                 <th class="text-center" style="width:80px;">ลำดับ</th>
+                <th class="text-center" style="width:150px;">จำนวนทรัพย์สินที่ใช้</th>
                 <th class="text-center" style="width:90px;">สถานะ</th>
                 <th class="text-center" style="width:90px;">จัดการ</th>
               </tr>
             </thead>
             <tbody>
-              <?php foreach ($rows as $i => $r) { ?>
+              <?php foreach ($rows as $i => $r) {
+                $usedN = $usageByType[(int)$r['TypeID']] ?? 0;
+              ?>
               <tr data-status="<?php echo $r['IsActive'] ? '1' : '0'; ?>">
                 <td><?php echo $i + 1; ?></td>
-                <td><code><?php echo htmlspecialchars($r['TypeCode']); ?></code></td>
-                <td><?php echo htmlspecialchars($r['TypeName']); ?></td>
-                <td style="font-size:0.82rem;color:var(--cfp-text-muted);">
+                <td style="white-space:nowrap;">
+                  <?php echo htmlspecialchars($r['TypeName']); ?>
+                  <div><code style="font-size:0.7rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['TypeCode']); ?></code></div>
+                </td>
+                <td class="text-muted" style="font-size:0.7rem;color:#6c757d;">
                   <?php echo htmlspecialchars($r['Description'] ?? '—'); ?>
                 </td>
                 <td class="text-center"><?php echo (int)$r['SortOrder']; ?></td>
+                <td class="text-center">
+                  <?php if ($usedN > 0) { ?>
+                    <span class="badge" style="background:#FFF3E0;color:#E65100;font-weight:600;" title="มีการนำไปใช้ — ลบไม่ได้ ต้องปิดใช้งานแทน">
+                      นำไปใช้ <?php echo $usedN; ?> รายการ
+                    </span>
+                  <?php } else { ?>
+                    <span class="badge" style="background:#F5F5F5;color:#9E9E9E;font-weight:500;" title="ไม่มีการนำไปใช้ ลบได้ปลอดภัย">
+                      ไม่ได้นำไปใช้
+                    </span>
+                  <?php } ?>
+                </td>
                 <td class="text-center">
                   <?php if ($r['IsActive']) { ?>
                     <span class="status-dot" style="background:#4CAF50;"></span>
@@ -282,9 +311,10 @@ if ($resUsed !== false) {
         <div class="modal-body">
           <div class="row g-3">
             <div class="col-md-5">
-  <label class="form-label form-required">รหัสประเภท</label>
-  <input type="text" class="form-control font-prompt" name="TypeCode" id="fCode"
-         placeholder="เช่น DOMESTIC, INDUSTRIAL" maxlength="50" required>
+  <label class="form-label">รหัสประเภท</label>
+  <input type="text" class="form-control font-prompt" id="fCodeDisplay"
+         value="ระบบสร้างให้อัตโนมัติ" readonly
+         style="background:#F0F0F0;color:var(--cfp-text-muted);">
 </div>
             <div class="col-md-7">
               <label class="form-label form-required">ชื่อประเภท</label>
@@ -343,7 +373,7 @@ if ($resUsed !== false) {
           <div class="cfp-import-dropzone" id="dropZone" onclick="document.getElementById('importFile').click()">
             <i class="bi bi-cloud-arrow-up-fill"></i>
             <p class="mb-1 mt-2" style="font-size:0.85rem;">คลิกหรือลากไฟล์ Excel มาวางที่นี่</p>
-            <p style="font-size:0.72rem;color:var(--cfp-text-muted);">คอลัมน์: รหัส*, ชื่อ*, คำอธิบาย, ลำดับ</p>
+            <p style="font-size:0.72rem;color:var(--cfp-text-muted);">คอลัมน์: ชื่อ*, คำอธิบาย, ลำดับ (รหัสระบบสร้างให้อัตโนมัติ)</p>
             <input type="file" id="importFile" name="import_file" accept=".xlsx" style="display:none;" onchange="handleFileSelect(this)">
           </div>
 
@@ -353,15 +383,14 @@ if ($resUsed !== false) {
             <strong style="color:var(--cfp-primary);">กฎการนำเข้า:</strong>
             <ul class="mb-0 ps-3">
               <li>รองรับไฟล์ .xlsx เท่านั้น ขนาดไม่เกิน 5 MB</li>
-              <li>ต้องกรอกรหัสในไฟล์ (ห้ามเว้นว่าง) ระบบจะไม่สร้างรหัสให้อัตโนมัติ
-                <!-- Badge สีเหลือง -->
-                <span class="badge badge-sm" style="background-color: #c0aa00ff; color: #fff; ">
-                  Manual 
+              <li>รหัสประเภทระบบสร้างให้อัตโนมัติ ไม่ต้องกรอกในไฟล์
+                <!-- Badge สีส้ม -->
+                <span class="badge badge-sm" style="background-color: #fd6a01ff; color: #fff; ">
+                  Auto
                 </span>
               </li>
-              <li>ไม่กรอกรหัส หรือไม่กรอกชื่อ → ข้ามแถวนั้น</li>
-              <li>รหัสหรือชื่อซ้ำกับข้อมูลเดิม หรือซ้ำกันเองในไฟล์ → ข้ามแถวนั้น</li>
-              <li>รหัสที่ใช้งานได้: DOMESTIC, INDUSTRIAL, AGRICULTURAL, MUNICIPAL, etc.</li>
+              <li>ไม่กรอกชื่อ → ข้ามแถวนั้น</li>
+              <li>ชื่อซ้ำกับข้อมูลเดิม หรือซ้ำกันเองในไฟล์ → ข้ามแถวนั้น</li>
             </ul>
           </div>
 
@@ -452,7 +481,7 @@ $(document).ready(function () {
         order:      [[4, 'asc']],
         pageLength: 25,
         lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-        dom: '<"row align-items-center mb-2"<"col-auto"l><"col"f>>rtip'
+        dom: '<"row align-items-center mb-2"<"col-auto"l><"col">>rtip'
     });
 
     /* ผูก keyword search เข้ากับ DataTables (ใช้แทนช่องค้นหา default) */
@@ -466,6 +495,12 @@ $(document).ready(function () {
     });
 });
 
+$('#fltKeyword').on('input', function () {
+    $(this).closest('.cfp-search-wrap').find('.cfp-search-clear').toggle(this.value.length > 0);
+});
+function clearKeyword() {
+    $('#fltKeyword').val('').trigger('keyup').trigger('input').focus();
+}
 function clearFilter() {
     $('#fltKeyword').val('');
     $('#fltStatus').val('');
@@ -486,16 +521,14 @@ function openModal(id) {
         document.getElementById('modalTitle').innerHTML = '<i class="bi bi-plus-circle me-2"></i>เพิ่มประเภทการปล่อยน้ำเสีย';
         document.getElementById('fAction').value = 'create';
         document.getElementById('fID').value     = '0';
-        document.getElementById('fCode').value = '';
-        document.getElementById('fCode').readOnly = false;
+        document.getElementById('fCodeDisplay').value = 'ระบบสร้างให้อัตโนมัติ';
     } else {
         // แก้ไข
         var d = typeData[id];
         document.getElementById('modalTitle').innerHTML = '<i class="bi bi-pencil-square me-2"></i>แก้ไขประเภทการปล่อยน้ำเสีย';
         document.getElementById('fAction').value = 'update';
         document.getElementById('fID').value     = id;
-        document.getElementById('fCode').value = d.code;
-        document.getElementById('fCode').readOnly = true;
+        document.getElementById('fCodeDisplay').value = d.code;
 
         document.getElementById('fName').value    = d.name;
         document.getElementById('fDesc').value    = d.desc;

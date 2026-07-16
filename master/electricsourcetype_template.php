@@ -17,7 +17,7 @@ $sheet       = $spreadsheet->getActiveSheet();
 $sheet->setTitle('แหล่งไฟฟ้า');
 
 /* ===== Header ===== */
-$headers = array('รหัสแหล่งไฟฟ้า*', 'ชื่อแหล่งไฟฟ้า*', 'Grid Factor', 'คำอธิบาย', 'ลำดับแสดง');
+$headers = array('ชื่อแหล่งไฟฟ้า*', 'Grid Factor', 'คำอธิบาย', 'ลำดับแสดง');
 $col = 'A';
 foreach ($headers as $h) {
     $sheet->setCellValue($col . '1', $h);
@@ -31,11 +31,11 @@ $headerStyle = array(
         'startColor' => array('rgb' => '2AABB8'),
     ),
 );
-$sheet->getStyle('A1:E1')->applyFromArray($headerStyle);
+$sheet->getStyle('A1:D1')->applyFromArray($headerStyle);
 
 /* ===== แถวตัวอย่าง ===== */
 $sampleRows = array(
-    array('GRID',    'ไฟฟ้าจากระบบสายส่ง (Grid)',    0.5986, 'ไฟฟ้าที่ซื้อจากการไฟฟ้า ใช้ค่า Emission Factor ตามประกาศ TGO', 1),
+    array('ไฟฟ้าจากระบบสายส่ง (Grid)', 0.5986, 'ไฟฟ้าที่ซื้อจากการไฟฟ้า ใช้ค่า Emission Factor ตามประกาศ TGO', 1),
 );
 
 $rowNum = 2;
@@ -44,15 +44,13 @@ foreach ($sampleRows as $row) {
     $sheet->setCellValue('B' . $rowNum, $row[1]);
     $sheet->setCellValue('C' . $rowNum, $row[2]);
     $sheet->setCellValue('D' . $rowNum, $row[3]);
-    $sheet->setCellValue('E' . $rowNum, $row[4]);
     $rowNum++;
 }
 
-$sheet->getColumnDimension('A')->setWidth(18);
-$sheet->getColumnDimension('B')->setWidth(30);
-$sheet->getColumnDimension('C')->setWidth(14);
-$sheet->getColumnDimension('D')->setWidth(45);
-$sheet->getColumnDimension('E')->setWidth(12);
+$sheet->getColumnDimension('A')->setWidth(30);
+$sheet->getColumnDimension('B')->setWidth(14);
+$sheet->getColumnDimension('C')->setWidth(45);
+$sheet->getColumnDimension('D')->setWidth(12);
 $fileName = 'Template_ElectricSource_' . date('Ymd') . '.xlsx';
 
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

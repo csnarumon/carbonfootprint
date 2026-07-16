@@ -629,7 +629,7 @@ body {
                 <div class="scope-info">
                     <div class="scope-name">Scope 1</div>
                     <div class="scope-desc-row">
-                        <span class="scope-desc-txt">Direct Emissions</span>
+                        <span class="scope-desc-txt">Direct GHG Emmissions</span>
                         <?php if ($scopeData['scope1'] !== null) { ?>
                         <div class="scope-val-wrap">
                             <span class="scope-val"><?php echo number_format($scopeData['scope1'], 0); ?></span>
@@ -648,7 +648,7 @@ body {
                 <div class="scope-info">
                     <div class="scope-name">Scope 2</div>
                     <div class="scope-desc-row">
-                        <span class="scope-desc-txt">Energy Indirect</span>
+                        <span class="scope-desc-txt">Energy Indirect GHG Emissions</span>
                         <?php if ($scopeData['scope2'] !== null) { ?>
                         <div class="scope-val-wrap">
                             <span class="scope-val"><?php echo number_format($scopeData['scope2'], 0); ?></span>
@@ -667,7 +667,7 @@ body {
                 <div class="scope-info">
                     <div class="scope-name">Scope 3</div>
                     <div class="scope-desc-row">
-                        <span class="scope-desc-txt">Value Chain</span>
+                        <span class="scope-desc-txt">Other Indirect GHG Emissions</span>
                         <?php if ($scopeData['scope3'] !== null) { ?>
                         <div class="scope-val-wrap">
                             <span class="scope-val"><?php echo number_format($scopeData['scope3'], 0); ?></span>

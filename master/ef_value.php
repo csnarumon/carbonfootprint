@@ -26,10 +26,13 @@ if (!empty($_SESSION['import_result'])) {
     unset($_SESSION['import_result']);
 }
 
-/* ===== EFSource dropdown ===== */
+/* ===== EFSource dropdown (เฉพาะแหล่งที่มีค่า EF ใช้งานอยู่จริง) ===== */
 $resSrc = sqlsrv_query($conn,
-    "SELECT SourceID, SourceCode, SourceName, YearApply
-     FROM CFP_EFSource WHERE IsActive=1 ORDER BY YearApply DESC, SourceCode");
+    "SELECT DISTINCT s.SourceID, s.SourceCode, s.SourceName, s.YearApply
+     FROM CFP_EFSource s
+     WHERE s.IsActive=1
+       AND EXISTS (SELECT 1 FROM CFP_EFValue e WHERE e.SourceID=s.SourceID AND e.IsActive=1)
+     ORDER BY s.YearApply DESC, s.SourceCode");
 $sources = array();
 while ($r = sqlsrv_fetch_array($resSrc, SQLSRV_FETCH_ASSOC)) { $sources[] = $r; }
 
@@ -45,6 +48,7 @@ $res  = sqlsrv_query($conn, "
     SELECT e.EFID, e.EFCode, e.EFName, e.EFValue, e.GWP, e.Unit,
            e.Scope, e.Category, e.GasType, e.YearApply, e.ValidUntil,
            e.RefID, e.RefTable, e.SourceID, e.IsActive,
+           e.CreatedDate, e.PreviousEFID,
            s.SourceCode, s.SourceName,
            a.ItemName, a.ScopeNo, a.CategoryNo
     FROM CFP_EFValue e
@@ -64,7 +68,7 @@ if ($resUsed) { $rU = sqlsrv_fetch_array($resUsed, SQLSRV_FETCH_ASSOC); $usedCou
 
 /* ===== Labels ===== */
 $scopeColors = array('Scope1'=>'#2AABB8','Scope2'=>'#F59E0B','Scope3'=>'#8B5CF6');
-$gasColors   = array('CO2'=>'#2AABB8','CH4'=>'#F59E0B','N2O'=>'#8B5CF6','HFCs'=>'#E05050','CO2e'=>'#43A047');
+$gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>'#B45309','CO2e'=>'#16A34A');
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -139,8 +143,11 @@ $gasColors   = array('CO2'=>'#2AABB8','CH4'=>'#F59E0B','N2O'=>'#8B5CF6','HFCs'=>
         <!-- Toolbar -->
         <div class="cfp-page-toolbar mb-3">
           <div class="d-flex gap-2 flex-wrap flex-grow-1">
-            <input type="text" id="fltKeyword" class="form-control font-prompt"
+            <div class="cfp-search-wrap flex-grow-1" style="position:relative;">
+            <input type="text" id="fltKeyword" class="form-control font-prompt" style="padding-right:28px;"
                    style="font-size:0.85rem;min-width:160px;" placeholder="ค้นหารหัส / ชื่อ EF...">
+            <button type="button" class="cfp-search-clear" onclick="clearKeyword()" title="ล้างคำค้นหา" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;padding:2px;line-height:1;color:var(--cfp-text-muted,#888);font-size:0.95rem;cursor:pointer;z-index:2;"><i class="bi bi-x-circle-fill"></i></button>
+            </div>
             <select id="fltScope" class="form-select font-prompt" style="font-size:0.85rem;max-width:130px;">
               <option value="">ทุก Scope</option>
               <option value="Scope1">Scope 1</option>
@@ -197,16 +204,15 @@ $gasColors   = array('CO2'=>'#2AABB8','CH4'=>'#F59E0B','N2O'=>'#8B5CF6','HFCs'=>
           <table id="tblEF" class="table table-bordered table-hover align-middle" style="width:100%;font-size:0.82rem;">
             <thead>
               <tr>
-                <th style="width:40px;">#</th>
-                <th style="width:100px;">รหัส EF</th>
-                <th>ชื่อ EF / รายการ</th>
-                <th style="width:80px;" class="text-center">Scope</th>
-                <th style="width:80px;" class="text-center">Gas Type</th>
-                <th style="width:110px;" class="text-center">ค่า EF</th>
-                <th style="width:70px;" class="text-center">GWP</th>
-                <th style="width:80px;" class="text-center">ปี</th>
-                <th style="width:110px;" class="text-center">แหล่งอ้างอิง</th>
-                <th style="width:80px;" class="text-center">สถานะ</th>
+                <th style="width:32px;">#</th>
+                <th style="min-width:280px;">ชื่อ EF / รายการ</th>
+                <th style="width:56px;" class="text-center">Scope</th>
+                <th style="width:60px;" class="text-center">Gas</th>
+                <th style="width:95px;" class="text-center">ค่า EF</th>
+                <th style="width:50px;" class="text-center">GWP</th>
+                <th style="width:56px;" class="text-center">ปี</th>
+                <th style="width:100px;" class="text-center">แหล่งอ้างอิง</th>
+                <th style="width:72px;" class="text-center">สถานะ</th>
                 <th style="width:80px;" class="text-center">จัดการ</th>
               </tr>
             </thead>
@@ -220,9 +226,9 @@ $gasColors   = array('CO2'=>'#2AABB8','CH4'=>'#F59E0B','N2O'=>'#8B5CF6','HFCs'=>
                   data-year="<?php echo $r['YearApply']??''; ?>"
                   data-source="<?php echo $r['SourceID']??''; ?>">
                 <td><?php echo $i+1; ?></td>
-                <td><code style="font-size:0.75rem;"><?php echo htmlspecialchars($r['EFCode']); ?></code></td>
                 <td>
                   <div style="font-weight:500;"><?php echo htmlspecialchars($r['EFName']); ?></div>
+                  <code style="font-size:0.7rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['EFCode']); ?></code>
                   <?php if (!empty($r['ItemName'])) { ?>
                   <div style="font-size:0.7rem;color:var(--cfp-text-muted);">
                     <i class="bi bi-link me-1"></i><?php echo htmlspecialchars($r['ItemName']); ?>
@@ -292,6 +298,10 @@ $gasColors   = array('CO2'=>'#2AABB8','CH4'=>'#F59E0B','N2O'=>'#8B5CF6','HFCs'=>
                   <button class="btn btn-outline-primary btn-action me-1"
                           onclick="openModal(<?php echo (int)$r['EFID']; ?>)" title="แก้ไข">
                     <i class="bi bi-pencil-square"></i>
+                  </button>
+                  <button class="btn btn-outline-secondary btn-action me-1"
+                          onclick="viewHistory('<?php echo htmlspecialchars(addslashes($r['EFCode'])); ?>')" title="ดูประวัติการแก้ไข">
+                    <i class="bi bi-clock-history"></i>
                   </button>
                   <button class="btn btn-action <?php echo $r['IsActive']?'btn-outline-danger':'btn-outline-success'; ?>"
                           onclick="confirmToggle(<?php echo (int)$r['EFID']; ?>,<?php echo $r['IsActive']?1:0; ?>,'<?php echo htmlspecialchars(addslashes($r['EFName'])); ?>')"
@@ -557,6 +567,8 @@ var efData = <?php
             'refID'      => (int)($r['RefID'] ?? 0),
             'active'     => (int)$r['IsActive'],
             'validUntil' => $r['ValidUntil'] instanceof DateTime ? $r['ValidUntil']->format('Y-m-d') : ($r['ValidUntil'] ?? ''),
+            'createdDate'=> $r['CreatedDate'] instanceof DateTime ? $r['CreatedDate']->format('Y-m-d H:i') : '',
+            'sourceCode' => $r['SourceCode'] ?? '',
         );
     }
     echo json_encode($map);
@@ -582,15 +594,61 @@ $(document).ready(function() {
         language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/th.json' },
         order: [[7,'desc'],[3,'asc'],[2,'asc']],
         pageLength: 25,
-        dom: '<"row align-items-center mb-2"<"col-auto"l><"col"f>>rtip'
+        dom: '<"row align-items-center mb-2"<"col-auto"l><"col">>rtip'
     });
     $('#fltKeyword').on('keyup', function() { tblApi.search(this.value).draw(); });
     $('#fltScope,#fltYear,#fltSource,#fltStatus').on('change', function() { tblApi.draw(); });
 });
 
+$('#fltKeyword').on('input', function () {
+    $(this).closest('.cfp-search-wrap').find('.cfp-search-clear').toggle(this.value.length > 0);
+});
+function clearKeyword() {
+    $('#fltKeyword').val('').trigger('keyup').trigger('input').focus();
+}
 function clearFilter() {
     $('#fltKeyword,#fltScope,#fltYear,#fltSource,#fltStatus').val('');
     tblApi.search('').draw();
+}
+
+/* ── ดูประวัติการแก้ไข (revision chain) ของ EF ตัวหนึ่ง ── */
+function viewHistory(code) {
+    var list = Object.values(efData).filter(function(d) { return d.code === code; });
+    list.sort(function(a, b) { return (a.createdDate || '').localeCompare(b.createdDate || ''); });
+
+    if (!list.length) {
+        Swal.fire({ icon: 'info', title: 'ไม่พบประวัติ', customClass: { popup: 'font-prompt' } });
+        return;
+    }
+
+    var rowsHtml = list.map(function(d, i) {
+        var statusBadge = d.active
+            ? '<span style="color:#2E7D32;font-weight:600;">ใช้งานอยู่</span>'
+            : '<span style="color:#9E9E9E;">ปิดใช้งาน (เวอร์ชันเก่า)</span>';
+        return '<tr>' +
+            '<td style="padding:4px 8px;text-align:center;">' + (i + 1) + '</td>' +
+            '<td style="padding:4px 8px;text-align:right;">' + d.value + '</td>' +
+            '<td style="padding:4px 8px;text-align:center;">' + d.year + '</td>' +
+            '<td style="padding:4px 8px;">' + (d.sourceCode || '—') + '</td>' +
+            '<td style="padding:4px 8px;">' + (d.createdDate || '—') + '</td>' +
+            '<td style="padding:4px 8px;">' + statusBadge + '</td>' +
+            '</tr>';
+    }).join('');
+
+    Swal.fire({
+        title: 'ประวัติการแก้ไข: ' + code,
+        html:
+            '<div style="max-height:320px;overflow-y:auto;text-align:left;">' +
+            '<table style="width:100%;font-size:0.8rem;border-collapse:collapse;">' +
+            '<thead><tr style="background:#F3F4F6;">' +
+            '<th style="padding:4px 8px;">#</th><th style="padding:4px 8px;">ค่า EF</th>' +
+            '<th style="padding:4px 8px;">ปี</th><th style="padding:4px 8px;">Source</th>' +
+            '<th style="padding:4px 8px;">วันที่บันทึก</th><th style="padding:4px 8px;">สถานะ</th>' +
+            '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>',
+        confirmButtonText: 'ปิด',
+        customClass: { popup: 'font-prompt' },
+        width: 600
+    });
 }
 
 function openModal(id) {

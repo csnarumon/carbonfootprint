@@ -47,15 +47,34 @@ foreach ($rows as $r) {
     if ($r['IsActive']) { $active++; } else { $inactive++; }
 }
 
-/* นับจำนวนสถานที่ที่ถูกใช้งานจริงใน CFP_Waste */
+/* นับจำนวนสถานที่ที่ถูกใช้งานจริง (รวม CFP_WasteAsset.DisposalSiteID + CFP_Waste.WasteDisposalSiteID) — ต้องตรงกับ usageByType ด้านล่าง */
 $usedCount = 0;
 $resUsed = @sqlsrv_query($conn, "
-    SELECT COUNT(DISTINCT DisposalSiteID) AS Cnt
-    FROM CFP_Waste
-    WHERE DisposalSiteID IS NOT NULL");
+    SELECT COUNT(DISTINCT SiteID) AS Cnt FROM (
+        SELECT DisposalSiteID AS SiteID FROM CFP_WasteAsset WHERE DisposalSiteID IS NOT NULL
+        UNION
+        SELECT WasteDisposalSiteID AS SiteID FROM CFP_Waste WHERE WasteDisposalSiteID IS NOT NULL
+    ) AS used");
 if ($resUsed !== false) {
     $rowUsed   = sqlsrv_fetch_array($resUsed, SQLSRV_FETCH_ASSOC);
     $usedCount = $rowUsed ? (int)$rowUsed['Cnt'] : 0;
+}
+
+/* จำนวนที่นำไปใช้จริงแยกตาม SiteID (รวม CFP_WasteAsset.DisposalSiteID + CFP_Waste.WasteDisposalSiteID) */
+$usageByType = array();
+$resU1 = @sqlsrv_query($conn, "SELECT DisposalSiteID, COUNT(*) AS Cnt FROM CFP_WasteAsset WHERE DisposalSiteID IS NOT NULL GROUP BY DisposalSiteID");
+if ($resU1) {
+    while ($rU1 = sqlsrv_fetch_array($resU1, SQLSRV_FETCH_ASSOC)) {
+        $sid = (int)$rU1['DisposalSiteID'];
+        $usageByType[$sid] = ($usageByType[$sid] ?? 0) + (int)$rU1['Cnt'];
+    }
+}
+$resU2 = @sqlsrv_query($conn, "SELECT WasteDisposalSiteID, COUNT(*) AS Cnt FROM CFP_Waste WHERE WasteDisposalSiteID IS NOT NULL GROUP BY WasteDisposalSiteID");
+if ($resU2) {
+    while ($rU2 = sqlsrv_fetch_array($resU2, SQLSRV_FETCH_ASSOC)) {
+        $sid = (int)$rU2['WasteDisposalSiteID'];
+        $usageByType[$sid] = ($usageByType[$sid] ?? 0) + (int)$rU2['Cnt'];
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -136,7 +155,10 @@ if ($resUsed !== false) {
         </div>
         <div class="cfp-page-toolbar mb-3">
           <div class="d-flex gap-2 flex-grow-1" style="max-width:560px;">
-            <input type="text" id="fltKeyword" class="form-control font-prompt" style="font-size:0.85rem;" placeholder="ค้นหารหัส / ชื่อสถานที่ / จังหวัด...">
+            <div class="cfp-search-wrap flex-grow-1" style="position:relative;">
+            <input type="text" id="fltKeyword" class="form-control font-prompt" style="font-size:0.85rem;padding-right:28px;" placeholder="ค้นหารหัส / ชื่อสถานที่ / จังหวัด...">
+            <button type="button" class="cfp-search-clear" onclick="clearKeyword()" title="ล้างคำค้นหา" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;padding:2px;line-height:1;color:var(--cfp-text-muted,#888);font-size:0.95rem;cursor:pointer;z-index:2;"><i class="bi bi-x-circle-fill"></i></button>
+            </div>
             <select id="fltStatus" class="form-select font-prompt" style="font-size:0.85rem;max-width:160px;">
               <option value="">สถานะทั้งหมด</option>
               <option value="1">ใช้งาน</option>
@@ -156,31 +178,44 @@ if ($resUsed !== false) {
             <thead>
               <tr>
                 <th style="width:40px;">#</th>
-                <th style="width:110px;">รหัส</th>
-                <th>ชื่อสถานที่</th>
+                <th style="min-width:180px;">ชื่อสถานที่</th>
                 <th style="width:130px;">จังหวัด</th>
                 <th>คำอธิบาย</th>
                 <th class="text-center" style="width:80px;">ลำดับ</th>
+                <th class="text-center" style="width:150px;">จำนวนทรัพย์สินที่ใช้</th>
                 <th class="text-center" style="width:90px;">สถานะ</th>
                 <th class="text-center" style="width:110px;">จัดการ</th>
               </tr>
             </thead>
             <tbody>
-              <?php foreach ($rows as $i => $r) { ?>
+              <?php foreach ($rows as $i => $r) {
+                $usedN = $usageByType[(int)$r['SiteID']] ?? 0;
+              ?>
               <tr data-status="<?php echo $r['IsActive'] ? '1' : '0'; ?>">
                 <td><?php echo $i + 1; ?></td>
-                <td><code><?php echo htmlspecialchars($r['SiteCode']); ?></code></td>
                 <td>
-                  <?php echo htmlspecialchars($r['SiteName']); ?>
+                  <span style="white-space:nowrap;"><?php echo htmlspecialchars($r['SiteName']); ?></span>
+                  <div><code style="font-size:0.7rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['SiteCode']); ?></code></div>
                   <?php if ($r['Address']) { ?>
                     <div style="font-size:0.75rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['Address']); ?></div>
                   <?php } ?>
                 </td>
                 <td style="font-size:0.82rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['Province'] ?? '—'); ?></td>
-                <td style="font-size:0.82rem;color:var(--cfp-text-muted);">
+                <td class="text-muted" style="font-size:0.7rem;color:#6c757d;">
                   <?php echo htmlspecialchars($r['Description'] ?? '—'); ?>
                 </td>
                  <td class="text-center"><?php echo (int)$r['SortOrder']; ?></td>
+                <td class="text-center">
+                  <?php if ($usedN > 0) { ?>
+                    <span class="badge" style="background:#FFF3E0;color:#E65100;font-weight:600;" title="มีการนำไปใช้ — ลบไม่ได้ ต้องปิดใช้งานแทน">
+                      นำไปใช้ <?php echo $usedN; ?> รายการ
+                    </span>
+                  <?php } else { ?>
+                    <span class="badge" style="background:#F5F5F5;color:#9E9E9E;font-weight:500;" title="ไม่มีการนำไปใช้ ลบได้ปลอดภัย">
+                      ไม่ได้นำไปใช้
+                    </span>
+                  <?php } ?>
+                </td>
                 <td class="text-center">
                   <?php if ($r['IsActive']) { ?>
                     <span class="status-dot" style="background:#4CAF50;"></span>
@@ -373,12 +408,18 @@ $(document).ready(function () {
         language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/th.json' },
         order: [[4, 'asc']], pageLength: 25,
         lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-        dom: '<"row align-items-center mb-2"<"col-auto"l><"col"f>>rtip'
+        dom: '<"row align-items-center mb-2"<"col-auto"l><"col">>rtip'
     });
     $('#fltKeyword').on('keyup', function () { tblTypeApi.search(this.value).draw(); });
     $('#fltStatus').on('change', function () { tblTypeApi.draw(); });
 });
 
+$('#fltKeyword').on('input', function () {
+    $(this).closest('.cfp-search-wrap').find('.cfp-search-clear').toggle(this.value.length > 0);
+});
+function clearKeyword() {
+    $('#fltKeyword').val('').trigger('keyup').trigger('input').focus();
+}
 function clearFilter() {
     $('#fltKeyword').val(''); $('#fltStatus').val('');
     tblTypeApi.search('').draw();

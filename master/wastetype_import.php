@@ -3,8 +3,8 @@
  master/wastetype_import.php
    รับไฟล์ Excel (.xlsx) แล้วนำเข้าข้อมูลประเภทขยะของเสีย
    คอลัมน์ที่ต้องมีในไฟล์ (เรียงตามลำดับ):
-   A: รหัสประเภท*  B: ชื่อประเภท*  C: กลุ่มของเสีย  D: คำอธิบาย  E: ลำดับแสดง
-   (รหัสต้องกรอกเอง ระบบจะไม่สร้างรหัสให้อัตโนมัติ)
+   A: ชื่อประเภท*  B: กลุ่มของเสีย  C: คำอธิบาย  D: ลำดับแสดง
+   (รหัสประเภทระบบสร้างให้อัตโนมัติ ไม่ต้องกรอกในไฟล์)
    ============================================== */
 require_once '../includes/auth_check.php';
 require_once '../config/db.php';
@@ -84,33 +84,21 @@ $rowNum = 1;  /* แถวที่ 1 คือ Header ไปแล้ว เร
 foreach ($rows as $row) {
     $rowNum++;
 
-    $code = excelCell($row, 0);   // คอลัมน์ A
-    $name = excelCell($row, 1);   // คอลัมน์ B
-    $group = excelCell($row, 2);  // คอลัมน์ C
-    $desc = excelCell($row, 3);   // คอลัมน์ D
-    $sort = excelCell($row, 4);   // คอลัมน์ E
+    $name  = excelCell($row, 0);   // คอลัมน์ A
+    $group = excelCell($row, 1);   // คอลัมน์ B
+    $desc  = excelCell($row, 2);   // คอลัมน์ C
+    $sort  = excelCell($row, 3);   // คอลัมน์ D
 
-    // ตรวจสอบรหัสและชื่อ
-    if ($code === '' || $name === '') {
+    // ตรวจสอบชื่อ
+    if ($name === '') {
         $failCount++;
-        $errors[] = 'แถวที่ ' . $rowNum . ': ขาดรหัสหรือชื่อ';
+        $errors[] = 'แถวที่ ' . $rowNum . ': ขาดชื่อประเภท';
         continue;
     }
 
     $sort = ($sort !== '' && is_numeric($sort)) ? (int)$sort : 99;
 
-    // ตรวจสอบรหัสซ้ำในระบบ
-    if (isset($existingCodes[$code])) {
-        $skipCount++;
-        continue;
-    }
-    // ตรวจสอบรหัสซ้ำในไฟล์เดียวกัน
-    if (isset($seenInFile[$code])) {
-        $skipCount++;
-        continue;
-    }
-
-    // ตรวจสอบชื่อซ้ำในระบบ (เผื่อไว้)
+    // ตรวจสอบชื่อซ้ำในระบบ
     if (isset($existingNames[$name])) {
         $skipCount++;
         continue;
@@ -120,7 +108,9 @@ foreach ($rows as $row) {
         continue;
     }
 
-    // Insert โดยใช้ $code ที่อ่านได้
+    // รหัสสร้างโดยระบบเสมอ ไม่รับค่าจากไฟล์
+    $code = generateTypeCode($conn, CODE_PREFIX);
+
     $sql = "INSERT INTO CFP_WasteType
             (TypeCode, TypeName, WasteGroup, Description, SortOrder, IsActive, CreatedBy, CreatedDate)
             VALUES (?, ?, ?, ?, ?, 1, ?, GETDATE())";
@@ -137,7 +127,7 @@ foreach ($rows as $row) {
         continue;
     }
 
-    $seenInFile[$code] = true;
+    $existingCodes[$code] = true;
     $seenInFileNames[$name] = true;
     $successCount++;
 }

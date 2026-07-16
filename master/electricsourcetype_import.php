@@ -81,32 +81,18 @@ $rowNum = 1;
 foreach ($rows as $row) {
     $rowNum++;
 
-    $code = excelCell($row, 0); // A: รหัส*
-    $name = excelCell($row, 1); // B: ชื่อ*
-    $grid = excelCell($row, 2); // C: Grid Factor
-    $desc = excelCell($row, 3); // D: คำอธิบาย
-    $sort = excelCell($row, 4); // E: ลำดับ
+    $name = excelCell($row, 0); // A: ชื่อ*
+    $grid = excelCell($row, 1); // B: Grid Factor
+    $desc = excelCell($row, 2); // C: คำอธิบาย
+    $sort = excelCell($row, 3); // D: ลำดับ
 
-    // ข้ามแถวที่ว่างทั้งรหัสและชื่อ
-    if ($code === '' && $name === '') {
-        continue;
-    }
-
-    // ตรวจสอบครบถ้วน
-    if ($code === '' || $name === '') {
-        $failCount++;
-        $errors[] = 'แถวที่ ' . $rowNum . ': กรุณากรอกรหัสและชื่อให้ครบ';
+    // ข้ามแถวที่ว่างชื่อ
+    if ($name === '') {
         continue;
     }
 
     $sort      = ($sort !== '' && is_numeric($sort)) ? (int)$sort : 99;
     $gridValue = ($grid !== '' && is_numeric($grid)) ? (float)$grid : null;
-
-    // ตรวจสอบรหัสซ้ำ
-    if (isset($existingCodes[$code]) || isset($seenInFile[$code])) {
-        $skipCount++;
-        continue;
-    }
 
     // ตรวจสอบชื่อซ้ำ
     if (isset($existingNames[$name]) || isset($seenInFileNames[$name])) {
@@ -114,7 +100,9 @@ foreach ($rows as $row) {
         continue;
     }
 
-    // Insert โดยใช้รหัสที่อ่านได้ (ไม่ generate)
+    // รหัสสร้างโดยระบบเสมอ ไม่รับค่าจากไฟล์
+    $code = generateSourceCode($conn, CODE_PREFIX);
+
     $sql = "INSERT INTO CFP_ElectricSourceType
             (SourceCode, SourceName, GridFactor, Description, SortOrder, IsActive, CreatedBy, CreatedDate)
             VALUES (?, ?, ?, ?, ?, 1, ?, GETDATE())";
@@ -128,7 +116,7 @@ foreach ($rows as $row) {
         continue;
     }
 
-    $seenInFile[$code] = true;
+    $existingCodes[$code] = true;
     $seenInFileNames[$name] = true;
     $successCount++;
 }

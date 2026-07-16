@@ -96,9 +96,13 @@ $vendorType = cleanStr($_REQUEST['VendorType'] ?? '', 100);
 $productType = cleanStr($_REQUEST['ProductType'] ?? '', 200);
 $transportDist = is_numeric($_REQUEST['TransportDist'] ?? '') ? (float)$_REQUEST['TransportDist'] : null;
 $remark   = cleanStr($_REQUEST['Remark'] ?? '', 500);
+$siteID   = (int)($_REQUEST['SiteID'] ?? 0);
 
 if (empty($code) || empty($name)) {
     jsonOut(false, 'กรุณากรอกรหัสและชื่อชาวสวน');
+}
+if ($siteID <= 0) {
+    jsonOut(false, 'กรุณาเลือก Site');
 }
 
 $AT = 'Vendor';
@@ -110,12 +114,12 @@ if ($action === 'create') {
 
     $res = sqlsrv_query($conn,
         "INSERT INTO CFP_Vendor (VendorCode, VendorName, VendorType, ContactName, Phone, Address,
-                                 Province, TaxID, ProductType, TransportDist, Remark,
+                                 Province, TaxID, ProductType, TransportDist, Remark, SiteID,
                                  IsActive, CreatedBy, CreatedDate)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,GETDATE())",
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?,GETDATE())",
         array($code, $name, $vendorType ?: null, $contact ?: null, $phone ?: null,
               $address ?: null, $province ?: null, $taxID ?: null, $productType ?: null,
-              $transportDist, $remark ?: null, $userID)
+              $transportDist, $remark ?: null, $siteID, $userID)
     );
     if (!$res) {
         $e = sqlsrv_errors();
@@ -155,12 +159,13 @@ if ($action === 'update') {
             ProductType = ?,
             TransportDist = ?,
             Remark = ?,
+            SiteID = ?,
             UpdatedBy = ?,
             UpdatedDate = GETDATE()
          WHERE VendorID = ?",
         array($code, $name, $vendorType ?: null, $contact ?: null, $phone ?: null,
               $address ?: null, $province ?: null, $taxID ?: null, $productType ?: null,
-              $transportDist, $remark ?: null, $userID, $id)
+              $transportDist, $remark ?: null, $siteID, $userID, $id)
     );
     if (!$res) {
         $e = sqlsrv_errors();

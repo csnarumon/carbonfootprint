@@ -70,23 +70,21 @@ if ($action === 'delete') {
     if (!$id) { redirectWithToast('ไม่พบข้อมูลประเภทขยะของเสีย', 'error'); }
 
     /* เช็ค CFP_WasteAsset (มี FK บังคับจริง) และ CFP_Waste (ตารางเดิม/legacy) */
-    $hasUsage = false;
+    $usageCnt = 0;
     $res = @sqlsrv_query($conn, "SELECT COUNT(*) AS Cnt FROM CFP_WasteAsset WHERE WasteTypeID = ?", array($id));
     if ($res !== false) {
         $chk = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC);
-        $hasUsage = $hasUsage || ($chk && $chk['Cnt'] > 0);
+        $usageCnt += $chk ? (int)$chk['Cnt'] : 0;
     }
     $res2 = @sqlsrv_query($conn, "SELECT COUNT(*) AS Cnt FROM CFP_Waste WHERE WasteTypeID = ?", array($id));
     if ($res2 !== false) {
         $chk2 = sqlsrv_fetch_array($res2, SQLSRV_FETCH_ASSOC);
-        $hasUsage = $hasUsage || ($chk2 && $chk2['Cnt'] > 0);
+        $usageCnt += $chk2 ? (int)$chk2['Cnt'] : 0;
     }
 
-    if ($hasUsage) {
-        sqlsrv_query($conn, "UPDATE CFP_WasteType SET IsActive=0, UpdatedBy=?, UpdatedDate=GETDATE() WHERE TypeID=?",
-            array((int)$_SESSION['user_id'], $id));
-        logAction($conn, 'DATA_UPDATE', 'CFP_WasteType', $id, null, null, null, 'ปิดใช้งาน (มีการใช้งานอยู่)');
-        redirectWithToast('มีข้อมูลขยะใช้ประเภทนี้อยู่ ระบบปิดใช้งานให้แทนการลบ');
+    if ($usageCnt > 0) {
+        /* มีการใช้งานอยู่ → บล็อกการลบ ให้ผู้ใช้ไปกดปิดใช้งาน (Toggle) เองแทน */
+        redirectWithToast('ไม่สามารถลบได้ เนื่องจากมีข้อมูลขยะ ' . $usageCnt . ' รายการใช้ประเภทนี้อยู่ — กรุณาปิดใช้งานแทน หรือย้ายไปใช้ประเภทอื่นก่อน', 'error');
     }
 
     $rDel = sqlsrv_query($conn, "DELETE FROM CFP_WasteType WHERE TypeID=?", array($id));
@@ -115,21 +113,9 @@ if ($name === '') {
 
 if ($action === 'create') {
 
-    // รับรหัสที่ผู้ใช้กรอกมา
-    $code = trim($_POST['TypeCode'] ?? '');
-    if ($code === '') {
-        redirectWithToast('กรุณากรอกรหัสประเภท', 'error');
-    }
+    /* รหัสสร้างโดยระบบเสมอ ไม่รับค่าจาก Form */
+    $code = generateTypeCode($conn, CODE_PREFIX);
 
-    // ตรวจสอบรหัสซ้ำ
-    $checkSql = "SELECT COUNT(*) AS Cnt FROM CFP_WasteType WHERE TypeCode = ?";
-    $checkRes = sqlsrv_query($conn, $checkSql, array($code));
-    $chkRow   = sqlsrv_fetch_array($checkRes, SQLSRV_FETCH_ASSOC);
-    if ($chkRow && $chkRow['Cnt'] > 0) {
-        redirectWithToast('รหัสนี้มีอยู่แล้วในระบบ กรุณาใช้รหัสอื่น', 'error');
-    }
-
-    // ใช้ $code ในการ INSERT แทนการ generate
     $sql = "INSERT INTO CFP_WasteType
             (TypeCode, TypeName, WasteGroup, Description, SortOrder, IsActive, CreatedBy, CreatedDate)
             VALUES (?, ?, ?, ?, ?, 1, ?, GETDATE())";
@@ -139,6 +125,17 @@ if ($action === 'create') {
         ($desc !== '' ? $desc : null),
         $sort, (int)$_SESSION['user_id']
     ));
+
+    /* กรณีชนกัน (race condition) ลองสร้างรหัสใหม่อีกครั้งเดียว */
+    if ($r === false) {
+        $code = generateTypeCode($conn, CODE_PREFIX);
+        $r = sqlsrv_query($conn, $sql, array(
+            $code, $name,
+            ($group !== '' ? $group : null),
+            ($desc !== '' ? $desc : null),
+            $sort, (int)$_SESSION['user_id']
+        ));
+    }
 
     if ($r === false) {
         redirectWithToast('เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่อีกครั้ง', 'error');

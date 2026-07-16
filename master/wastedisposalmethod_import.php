@@ -4,7 +4,7 @@
    รับไฟล์ Excel (.xlsx) แล้วนำเข้าข้อมูลวิธีกำจัดขยะ
    คอลัมน์ที่ต้องมีในไฟล์ (เรียงตามลำดับ):
    A: ชื่อประเภท*  B: คำอธิบาย  C: ลำดับแสดง
-   (รหัสประเภทระบบสร้างให้อัตโนมัติ ไม่ต้องกรอกในไฟล์)
+   (รหัสประเภทระบบสร้างให้อัตโนมัติจริง — ไม่ต้องกรอกในไฟล์)
    ============================================== */
 require_once '../includes/auth_check.php';
 require_once '../config/db.php';
@@ -83,24 +83,17 @@ $rowNum = 1;  /* แถวที่ 1 คือ Header ไปแล้ว เร
 foreach ($rows as $row) {
     $rowNum++;
 
-    $code = excelCell($row, 0);   // คอลัมน์ A
-    $name = excelCell($row, 1);   // คอลัมน์ B
-    $desc = excelCell($row, 2);   // คอลัมน์ C
-    $sort = excelCell($row, 3);   // คอลัมน์ D
+    $name = excelCell($row, 0);   // คอลัมน์ A
+    $desc = excelCell($row, 1);   // คอลัมน์ B
+    $sort = excelCell($row, 2);   // คอลัมน์ C
 
-    if ($code === '' || $name === '') {
+    if ($name === '') {
         $failCount++;
-        $errors[] = 'แถวที่ ' . $rowNum . ': ขาดรหัสหรือชื่อ';
+        $errors[] = 'แถวที่ ' . $rowNum . ': ขาดชื่อประเภท';
         continue;
     }
 
     $sort = ($sort !== '' && is_numeric($sort)) ? (int)$sort : 99;
-
-    // ตรวจสอบรหัสซ้ำ (ต้อง query รหัสที่มีอยู่แล้วก่อนลูป)
-    if (isset($existingCodes[$code]) || isset($seenInFile[$code])) {
-        $skipCount++;
-        continue;
-    }
 
     // ตรวจสอบชื่อซ้ำ (optional)
     if (isset($existingNames[$name]) || isset($seenInFileNames[$name])) {
@@ -108,7 +101,9 @@ foreach ($rows as $row) {
         continue;
     }
 
-    // Insert โดยใช้ $code ที่อ่านได้
+    // รหัสสร้างโดยระบบเสมอ ไม่รับค่าจากไฟล์
+    $code = generateMethodCode($conn, CODE_PREFIX);
+
     $sql = "INSERT INTO CFP_WasteDisposalMethod
             (MethodCode, MethodName, Description, SortOrder, IsActive, CreatedBy, CreatedDate)
             VALUES (?, ?, ?, ?, 1, ?, GETDATE())";
@@ -122,7 +117,7 @@ foreach ($rows as $row) {
         continue;
     }
 
-    $seenInFile[$code] = true;
+    $existingCodes[$code] = true;
     $seenInFileNames[$name] = true;
     $successCount++;
 }

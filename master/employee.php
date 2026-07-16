@@ -75,7 +75,7 @@ $res = sqlsrv_query($conn, "
            dv.DivisionID, dv.DivisionName,
            c.CompanyID,  c.CompanyName,
            e.PositionID, p.PositionName,
-           e.CommuteType, e.CommuteDistKm, e.WorkDaysPerMonth,
+           e.CommuteType, e.CommuteDistKm, e.WorkDaysPerMonth, e.WorkDaysPerYear, e.ResidenceDistrict,
            e.VehicleTypeID, vt.TypeName AS VehicleTypeName,
            e.Email, e.Phone, e.Remark, e.IsActive
     FROM CFP_Employee e
@@ -134,6 +134,8 @@ foreach ($rows as $r) {
         'commute'   => $r['CommuteType']     ?? '',
         'dist'      => $r['CommuteDistKm']   !== null ? (float)$r['CommuteDistKm'] : '',
         'workdays'  => $r['WorkDaysPerMonth'] !== null ? (int)$r['WorkDaysPerMonth']   : '',
+        'workdaysYear' => $r['WorkDaysPerYear'] !== null ? (int)$r['WorkDaysPerYear'] : '',
+        'district'  => $r['ResidenceDistrict'] ?? '',
         'vtype'     => $r['VehicleTypeID']   ? (int)$r['VehicleTypeID']   : '',
         'email'     => $r['Email']           ?? '',
         'phone'     => $r['Phone']           ?? '',
@@ -564,6 +566,20 @@ body { font-family: 'Prompt', sans-serif; }
                    min="1" max="31" step="1" placeholder="เช่น 22">
             <span class="input-group-text font-prompt" style="font-size:0.82rem;">วัน</span>
         </div>
+    </div>
+
+    <div class="col-md-4">
+        <label class="form-label">วันทำงานตลอดทั้งปี (ไม่รวมวันลา)</label>
+        <div class="input-group">
+            <input type="number" class="form-control font-prompt" name="WorkDaysPerYear" id="fWorkDaysYear"
+                   min="1" max="366" step="1" placeholder="เช่น 296">
+            <span class="input-group-text font-prompt" style="font-size:0.82rem;">วัน/ปี</span>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">สถานที่พัก (อำเภอ)</label>
+        <input type="text" class="form-control font-prompt" name="ResidenceDistrict" id="fDistrict"
+               maxlength="100" placeholder="เช่น หาดใหญ่">
     </div>
 
     <div class="col-md-6">
@@ -1095,6 +1111,8 @@ function openModal(id) {
         document.getElementById('fVType').value = d.vtype || '';
         document.getElementById('fDist').value = d.dist || '';
         document.getElementById('fWorkDays').value = d.workdays || '';
+        document.getElementById('fWorkDaysYear').value = d.workdaysYear || '';
+        document.getElementById('fDistrict').value = d.district || '';
         document.getElementById('fEmail').value = d.email || '';
         document.getElementById('fPhone').value = d.phone || '';
         document.getElementById('fRemark').value = d.remark || '';

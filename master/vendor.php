@@ -15,13 +15,19 @@ if (!empty($_SESSION['toast_msg'])) {
     unset($_SESSION['toast_msg'], $_SESSION['toast_type']);
 }
 
+/* ===== ดึงรายชื่อ Site ===== */
+$resSite = sqlsrv_query($conn, "SELECT SiteID, SiteName FROM CFP_Site WHERE IsActive=1 ORDER BY SiteName");
+$sites = array();
+while ($s = sqlsrv_fetch_array($resSite, SQLSRV_FETCH_ASSOC)) { $sites[] = $s; }
+
 /* ===== ดึงข้อมูลชาวสวน ===== */
 $res = @sqlsrv_query($conn,"
     SELECT v.VendorID, v.VendorCode, v.VendorName, v.VendorType,
            v.ContactName, v.Phone, v.Address, v.Province,
            v.TaxID, v.ProductType, v.TransportDist,
-           v.Remark, v.IsActive
+           v.Remark, v.IsActive, v.SiteID, s.SiteName
     FROM CFP_Vendor v
+    LEFT JOIN CFP_Site s ON s.SiteID = v.SiteID
     ORDER BY v.VendorCode");
 $rows = array(); 
 if ($res) { 
@@ -71,6 +77,7 @@ foreach ($rows as $r) {
         'productType'   => $r['ProductType'] ?? '',
         'transportDist' => $r['TransportDist'] ? (float)$r['TransportDist'] : '',
         'remark'        => $r['Remark'] ?? '',
+        'siteID'        => $r['SiteID'] ? (int)$r['SiteID'] : '',
     );
 }
 
@@ -248,6 +255,12 @@ $pageIcon  = 'tree';
         <!-- บรรทัดที่ 2: จังหวัด + ประเภทชาวสวน + ประเภทสินค้า -->
         <div class="toolbar-row toolbar-row-filters">
             <div class="toolbar-left">
+                <select id="fltSite" class="form-select font-prompt">
+                    <option value="">Site ทั้งหมด</option>
+                    <?php foreach ($sites as $s) { ?>
+                    <option value="<?php echo (int)$s['SiteID']; ?>"><?php echo htmlspecialchars($s['SiteName']); ?></option>
+                    <?php } ?>
+                </select>
                 <select id="fltProvince" class="form-select font-prompt">
                     <option value="">จังหวัดทั้งหมด</option>
                     <?php foreach ($provinceFilterOptions as $province) { ?>
@@ -275,8 +288,9 @@ $pageIcon  = 'tree';
             <thead>
                 <tr>
                     <th style="width:40px">#</th>
-                    <th style="width:110px">รหัส</th>
+                    <th style="width:100px">รหัส</th>
                     <th>ชื่อ / ที่อยู่</th>
+                    <th style="width:130px">Site</th>
                     <th style="width:120px">ผู้ติดต่อ</th>
                     <th style="width:120px">ประเภท</th>
                     <th style="width:100px">ระยะทาง (km)</th>
@@ -287,6 +301,7 @@ $pageIcon  = 'tree';
             <tbody>
                 <?php foreach ($rows as $i => $r) { ?>
                 <tr data-status="<?php echo $r['IsActive'] ? 'ใช้งาน' : 'ปิด'; ?>"
+                    data-site="<?php echo (int)($r['SiteID'] ?? 0); ?>"
                     data-province="<?php echo htmlspecialchars($r['Province'] ?? ''); ?>"
                     data-vendortype="<?php echo htmlspecialchars($r['VendorType'] ?? ''); ?>"
                     data-product="<?php echo htmlspecialchars($r['ProductType'] ?? ''); ?>">
@@ -305,6 +320,7 @@ $pageIcon  = 'tree';
                         </div>
                         <?php } ?>
                     </td>
+                    <td class="small text-muted"><?php echo htmlspecialchars($r['SiteName'] ?? '—'); ?></td>
                     <td>
                         <div><?php echo htmlspecialchars($r['ContactName'] ?? '—'); ?></div>
                         <?php if (!empty($r['Phone'])) { ?>
@@ -370,8 +386,17 @@ $pageIcon  = 'tree';
                         </div>
                         <div class="col-md-9">
                             <label class="form-label form-required">ชื่อชาวสวน / ฟาร์ม</label>
-                            <input type="text" class="form-control" name="VendorName" id="fName" 
+                            <input type="text" class="form-control" name="VendorName" id="fName"
                                    maxlength="300" required style="font-family:'Prompt',sans-serif">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label form-required">Site</label>
+                            <select class="form-select" name="SiteID" id="fSite" required style="font-family:'Prompt',sans-serif">
+                                <option value="">— เลือก Site —</option>
+                                <?php foreach ($sites as $s) { ?>
+                                <option value="<?php echo (int)$s['SiteID']; ?>"><?php echo htmlspecialchars($s['SiteName']); ?></option>
+                                <?php } ?>
+                            </select>
                         </div>
 
                         <!-- ประเภทชาวสวน + Tax ID -->
@@ -841,6 +866,7 @@ function openModal(id) {
         document.getElementById('modalTitle').innerHTML = '<i class="bi bi-tree me-2"></i>เพิ่มชาวสวน';
         document.getElementById('fAction').value = 'create';
         document.getElementById('fID').value = '0';
+        document.getElementById('fSite').value = '';
         currentAssetID = 0;
         savedPreviewFiles = [];
         savedPreviewConfig = [];
@@ -854,6 +880,7 @@ function openModal(id) {
 
         document.getElementById('fCode').value = d.code || '';
         document.getElementById('fName').value = d.name || '';
+        document.getElementById('fSite').value = d.siteID || '';
         document.getElementById('fVendorType').value = d.vendorType || '';
         document.getElementById('fTaxID').value = d.taxID || '';
         document.getElementById('fProductType').value = d.productType || '';
@@ -926,6 +953,15 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        if (!$('#fSite').val()) {
+            Swal.fire({
+                icon: 'warning', title: 'ข้อมูลไม่ครบ',
+                text: 'กรุณาเลือก Site',
+                confirmButtonText: 'ตกลง', customClass: { popup: 'font-prompt' }
+            });
+            return;
+        }
+
         var totalCount = savedPreviewConfig.length + pendingFiles.length;
         if (totalCount > 10) {
             Swal.fire({
@@ -978,11 +1014,13 @@ document.addEventListener('DOMContentLoaded', function() {
     $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
         var row = table.row(dataIndex).node();
         var status = $('#fltStatus').val();
+        var site = $('#fltSite').val();
         var province = $('#fltProvince').val();
         var vendorType = $('#fltVendorType').val();
         var productType = $('#fltProductType').val();
 
         if (status !== '' && $(row).attr('data-status') !== status) return false;
+        if (site !== '' && $(row).attr('data-site') !== site) return false;
         if (province !== '' && $(row).attr('data-province') !== province) return false;
         if (vendorType !== '' && $(row).attr('data-vendortype') !== vendorType) return false;
         if (productType !== '' && $(row).attr('data-product') !== productType) return false;
@@ -990,7 +1028,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ===== Event listeners: เมื่อเลือก filter ให้ redraw =====
-    $('#fltStatus, #fltProvince, #fltVendorType, #fltProductType').on('change', function() {
+    $('#fltStatus, #fltSite, #fltProvince, #fltVendorType, #fltProductType').on('change', function() {
         table.draw();
     });
 
@@ -998,6 +1036,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.clearFilter = function() {
         $('#fltKeyword').val('');
         $('#fltStatus').val('');
+        $('#fltSite').val('');
         $('#fltProvince').val('');
         $('#fltVendorType').val('');
         $('#fltProductType').val('');

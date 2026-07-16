@@ -85,25 +85,19 @@ if ($action === 'delete') {
     if (!$id) { redirectWithToast('ไม่พบข้อมูลประเภทการกำจัดเศษแป้ง', 'error'); }
 
     /* ✅ ถ้าไม่มีตาราง CFP_FlourWaste ให้ข้ามการตรวจสอบ */
-    $hasUsage = false;
+    $usageCnt = 0;
     $sql = "SELECT COUNT(*) AS Cnt FROM CFP_FlourWaste WHERE FlourWasteTypeID = ?";
     $res = sqlsrv_query($conn, $sql, array($id));
 
     if ($res !== false) {
         $chk = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC);
-        $hasUsage = ($chk && $chk['Cnt'] > 0);
+        $usageCnt = $chk ? (int)$chk['Cnt'] : 0;
     }
     // ถ้า $res === false → ตารางไม่มี → ถือว่าไม่มีการใช้งาน
 
-    if ($hasUsage) {
-        /* มีการใช้งานอยู่ → Soft delete (ปิดใช้งาน) แทนการลบจริง */
-        $updateSql = "UPDATE CFP_FlourWasteType SET IsActive=0, UpdatedBy=?, UpdatedDate=GETDATE() WHERE TypeID=?";
-        $updateRes = sqlsrv_query($conn, $updateSql, array((int)$_SESSION['user_id'], $id));
-        if ($updateRes === false) {
-            redirectWithToast('เกิดข้อผิดพลาดในการปิดใช้งาน', 'error');
-        }
-        logAction($conn, 'DATA_UPDATE', 'CFP_FlourWasteType', $id, null, null, null, 'ปิดใช้งาน (มีการใช้งานอยู่)');
-        redirectWithToast('มีข้อมูลเศษแป้งใช้ประเภทนี้อยู่ ระบบปิดใช้งานให้แทนการลบ');
+    if ($usageCnt > 0) {
+        /* มีการใช้งานอยู่ → บล็อกการลบ ให้ผู้ใช้ไปกดปิดใช้งาน (Toggle) เองแทน */
+        redirectWithToast('ไม่สามารถลบได้ เนื่องจากมีข้อมูลเศษแป้ง ' . $usageCnt . ' รายการใช้ประเภทนี้อยู่ — กรุณาปิดใช้งานแทน หรือย้ายไปใช้ประเภทอื่นก่อน', 'error');
     }
 
     $delSql = "DELETE FROM CFP_FlourWasteType WHERE TypeID=?";

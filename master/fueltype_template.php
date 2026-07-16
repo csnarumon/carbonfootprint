@@ -17,7 +17,7 @@ $sheet       = $spreadsheet->getActiveSheet();
 $sheet->setTitle('ประเภทเชื้อเพลิง');
 
 /* ===== Header ===== */
-$headers = array('รหัสประเภท*', 'ชื่อประเภท*', 'กลุ่มเชื้อเพลิง', 'หน่วยปกติ', 'คำอธิบาย', 'ลำดับแสดง');
+$headers = array('ชื่อประเภท*', 'กลุ่มเชื้อเพลิง', 'หน่วยปกติ', 'คำอธิบาย', 'ลำดับแสดง');
 $col = 'A';
 foreach ($headers as $h) {
     $sheet->setCellValue($col . '1', $h);
@@ -31,12 +31,12 @@ $headerStyle = array(
         'startColor' => array('rgb' => '2AABB8'),
     ),
 );
-$sheet->getStyle('A1:F1')->applyFromArray($headerStyle);
+$sheet->getStyle('A1:E1')->applyFromArray($headerStyle);
 
 /* ===== แถวตัวอย่าง ===== */
 $sampleRows = array(
 
-    array('DIESELB7',    'ดีเซล B7', 'Fossil Fuel', 'ลิตร', 'เชื้อเพลิงสำหรับเครื่องจักรและยานพาหนะดีเซล ผสมไบโอดีเซล 7%', 1),
+    array('ดีเซล B7', 'Fossil Fuel', 'ลิตร', 'เชื้อเพลิงสำหรับเครื่องจักรและยานพาหนะดีเซล ผสมไบโอดีเซล 7%', 1),
 );
 
 $rowNum = 2;
@@ -46,16 +46,14 @@ foreach ($sampleRows as $row) {
     $sheet->setCellValue('C' . $rowNum, $row[2]);
     $sheet->setCellValue('D' . $rowNum, $row[3]);
     $sheet->setCellValue('E' . $rowNum, $row[4]);
-    $sheet->setCellValue('F' . $rowNum, $row[5]);
     $rowNum++;
 }
 
-$sheet->getColumnDimension('A')->setWidth(16);
-$sheet->getColumnDimension('B')->setWidth(26);
-$sheet->getColumnDimension('C')->setWidth(18);
-$sheet->getColumnDimension('D')->setWidth(12);
-$sheet->getColumnDimension('E')->setWidth(45);
-$sheet->getColumnDimension('F')->setWidth(12);
+$sheet->getColumnDimension('A')->setWidth(26);
+$sheet->getColumnDimension('B')->setWidth(18);
+$sheet->getColumnDimension('C')->setWidth(12);
+$sheet->getColumnDimension('D')->setWidth(45);
+$sheet->getColumnDimension('E')->setWidth(12);
 
 $fileName = 'Template_FuelType_' . date('Ymd') . '.xlsx';
 

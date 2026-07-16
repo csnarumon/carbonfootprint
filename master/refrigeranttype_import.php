@@ -2,7 +2,8 @@
 /* ==============================================
    master/refrigeranttype_import.php
    รับไฟล์ Excel (.xlsx) แล้วนำเข้าข้อมูลประเภทสารทำความเย็น
-   คอลัมน์: A:รหัส*  B:ชื่อ*  C:GWP100  D:คำอธิบาย  E:ลำดับ
+   คอลัมน์: A:ชื่อ*  B:GWP100  C:คำอธิบาย  D:ลำดับ
+   (รหัสประเภทระบบสร้างให้อัตโนมัติ ไม่ต้องกรอกในไฟล์)
    ============================================== */
 require_once '../includes/auth_check.php';
 require_once '../config/db.php';
@@ -20,6 +21,18 @@ function redirectWithToast($msg, $type = 'success') {
     $_SESSION['toast'] = array('msg' => $msg, 'type' => $type);
     header('Location: refrigeranttype.php');
     exit;
+}
+
+/* ===== Helper: generate รหัสอัตโนมัติ รูปแบบ RT-0001 ===== */
+function generateTypeCode($conn, $prefix) {
+    $res = sqlsrv_query($conn, "
+        SELECT MAX(CAST(SUBSTRING(TypeCode, LEN(?) + 2, 10) AS INT)) AS MaxNum
+        FROM CFP_RefrigerantType
+        WHERE TypeCode LIKE ? + '-%'",
+        array($prefix, $prefix));
+    $row = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC);
+    $nextNum = ($row && $row['MaxNum'] !== null) ? ((int)$row['MaxNum'] + 1) : 1;
+    return $prefix . '-' . str_pad($nextNum, 4, '0', STR_PAD_LEFT);
 }
 
 /* ===== ตรวจไฟล์ ===== */
@@ -68,32 +81,18 @@ $rowNum = 1;
 foreach ($rows as $row) {
     $rowNum++;
 
-    $code = excelCell($row, 0); // A: รหัส*
-    $name = excelCell($row, 1); // B: ชื่อ*
-    $gwp  = excelCell($row, 2); // C: GWP100
-    $desc = excelCell($row, 3); // D: คำอธิบาย
-    $sort = excelCell($row, 4); // E: ลำดับ
+    $name = excelCell($row, 0); // A: ชื่อ*
+    $gwp  = excelCell($row, 1); // B: GWP100
+    $desc = excelCell($row, 2); // C: คำอธิบาย
+    $sort = excelCell($row, 3); // D: ลำดับ
 
     // ข้ามแถวว่าง
-    if ($code === '' && $name === '') {
-        continue;
-    }
-
-    // ตรวจสอบครบถ้วน
-    if ($code === '' || $name === '') {
-        $failCount++;
-        $errors[] = 'แถวที่ ' . $rowNum . ': กรุณากรอกรหัสและชื่อให้ครบ';
+    if ($name === '') {
         continue;
     }
 
     $sort     = ($sort !== '' && is_numeric($sort)) ? (int)$sort : 99;
     $gwpValue = ($gwp !== '' && is_numeric($gwp)) ? (float)$gwp : null;
-
-    // ตรวจสอบรหัสซ้ำ (ในระบบ + ในไฟล์)
-    if (isset($existingCodes[$code]) || isset($seenInFile[$code])) {
-        $skipCount++;
-        continue;
-    }
 
     // ตรวจสอบชื่อซ้ำ (ในระบบ + ในไฟล์)
     if (isset($existingNames[$name]) || isset($seenInFileNames[$name])) {
@@ -101,7 +100,9 @@ foreach ($rows as $row) {
         continue;
     }
 
-    // INSERT โดยใช้รหัสจากไฟล์ (ไม่ generate)
+    // รหัสสร้างโดยระบบเสมอ ไม่รับค่าจากไฟล์
+    $code = generateTypeCode($conn, CODE_PREFIX);
+
     $sql = "INSERT INTO CFP_RefrigerantType
             (TypeCode, TypeName, GWP100, Description, SortOrder, IsActive, CreatedBy, CreatedDate)
             VALUES (?, ?, ?, ?, ?, 1, ?, GETDATE())";
@@ -115,7 +116,7 @@ foreach ($rows as $row) {
         continue;
     }
 
-    $seenInFile[$code] = true;
+    $existingCodes[$code] = true;
     $seenInFileNames[$name] = true;
     $successCount++;
 }

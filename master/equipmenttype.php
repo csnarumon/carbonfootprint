@@ -30,6 +30,15 @@ $resUsed = @sqlsrv_query($conn,"SELECT COUNT(DISTINCT EquipmentTypeID) AS Cnt FR
 $usedCount = 0;
 if ($resUsed) { $rU = sqlsrv_fetch_array($resUsed, SQLSRV_FETCH_ASSOC); $usedCount = $rU ? (int)$rU['Cnt'] : 0; }
 
+/* จำนวนที่นำไปใช้จริงแยกตาม TypeID — ใช้ตัดสินใจว่าประเภทไหนลบได้ปลอดภัย */
+$usageByType = array();
+$resUsageDetail = @sqlsrv_query($conn, "SELECT EquipmentTypeID, COUNT(*) AS Cnt FROM CFP_Equipment WHERE EquipmentTypeID IS NOT NULL GROUP BY EquipmentTypeID");
+if ($resUsageDetail) {
+    while ($rU2 = sqlsrv_fetch_array($resUsageDetail, SQLSRV_FETCH_ASSOC)) {
+        $usageByType[(int)$rU2['EquipmentTypeID']] = (int)$rU2['Cnt'];
+    }
+}
+
 $pageTitle = 'ประเภทเครื่องจักร'; $pageIcon = 'gear-wide-connected';
 ?>
 <!DOCTYPE html><html lang="th"><head>
@@ -87,8 +96,11 @@ body{font-family:'Prompt',sans-serif;}
   <div class="cfp-page-toolbar mb-3">
 
     <div class="d-flex gap-2 flex-grow-1" style="max-width:560px;">
-            <input type="text" id="fltKeyword" class="form-control font-prompt" style="font-size:0.85rem;"
+            <div class="cfp-search-wrap flex-grow-1" style="position:relative;">
+            <input type="text" id="fltKeyword" class="form-control font-prompt" style="font-size:0.85rem;padding-right:28px;"
                    placeholder="ค้นหารหัส / ชื่อประเภท / คำอธิบาย...">
+            <button type="button" class="cfp-search-clear" onclick="clearKeyword()" title="ล้างคำค้นหา" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;padding:2px;line-height:1;color:var(--cfp-text-muted,#888);font-size:0.95rem;cursor:pointer;z-index:2;"><i class="bi bi-x-circle-fill"></i></button>
+            </div>
             <select id="fltStatus" class="form-select font-prompt" style="font-size:0.85rem;max-width:160px;">
               <option value="">สถานะทั้งหมด</option>
               <option value="1">ใช้งาน</option>
@@ -107,21 +119,32 @@ body{font-family:'Prompt',sans-serif;}
     <table id="tblType" class="table table-bordered table-hover align-middle" style="width:100%">
       <thead><tr>
         <th style="width:40px">#</th>
-        <th style="width:120px">รหัส</th>
-        <th>ชื่อประเภท</th>
+        <th style="min-width:180px;">ชื่อประเภท</th>
         <th>คำอธิบาย</th>
         <th style="width:70px" class="text-center">ลำดับ</th>
+        <th style="width:150px" class="text-center">จำนวนทรัพย์สินที่ใช้</th>
         <th style="width:90px" class="text-center">สถานะ</th>
         <th style="width:100px" class="text-center">จัดการ</th>
       </tr></thead>
       <tbody>
-      <?php foreach ($rows as $i => $r) { ?>
+      <?php foreach ($rows as $i => $r) {
+        $usedN = $usageByType[(int)$r['TypeID']] ?? 0;
+      ?>
       <tr data-status="<?php echo $r['IsActive']?'1':'0'; ?>">
         <td><?php echo $i+1; ?></td>
-        <td><code><?php echo htmlspecialchars($r['TypeCode']); ?></code></td>
-        <td><?php echo htmlspecialchars($r['TypeName']); ?></td>
-        <td style="font-size:0.82rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['Description']??''); ?></td>
+        <td style="white-space:nowrap;">
+          <?php echo htmlspecialchars($r['TypeName']); ?>
+          <div><code style="font-size:0.7rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['TypeCode']); ?></code></div>
+        </td>
+        <td class="text-muted" style="font-size:0.7rem;color:#6c757d;"><?php echo htmlspecialchars($r['Description']??''); ?></td>
         <td class="text-center"><?php echo $r['SortOrder']; ?></td>
+        <td class="text-center">
+          <?php if ($usedN > 0) { ?>
+            <span class="badge" style="background:#FFF3E0;color:#E65100;font-weight:600;" title="มีการนำไปใช้ — ลบไม่ได้ ต้องปิดใช้งานแทน">นำไปใช้ <?php echo $usedN; ?> รายการ</span>
+          <?php } else { ?>
+            <span class="badge" style="background:#F5F5F5;color:#9E9E9E;font-weight:500;" title="ไม่มีการนำไปใช้ ลบได้ปลอดภัย">ไม่ได้นำไปใช้</span>
+          <?php } ?>
+        </td>
         <td class="text-center">
           <?php if ($r['IsActive']) { ?>
             <span class="status-dot" style="background:#4CAF50;"></span><span style="font-size:0.78rem;color:#2E7D32;"> ใช้งาน</span>
@@ -271,10 +294,16 @@ $.fn.dataTable.ext.search.push(function(settings,data,dataIndex){
 });
 var tblApi;
 $(document).ready(function(){
-  tblApi=$('#tblType').DataTable({language:{url:'https://cdn.datatables.net/plug-ins/1.13.6/i18n/th.json'},order:[[4,'asc']],pageLength:25,dom:'<"row align-items-center mb-2"<"col-auto"l><"col"f>>rtip'});
+  tblApi=$('#tblType').DataTable({language:{url:'https://cdn.datatables.net/plug-ins/1.13.6/i18n/th.json'},order:[[4,'asc']],pageLength:25,dom:'<"row align-items-center mb-2"<"col-auto"l><"col">>rtip'});
   $('#fltKeyword').on('keyup',function(){tblApi.search(this.value).draw();});
   $('#fltStatus').on('change',function(){tblApi.draw();});
 });
+$('#fltKeyword').on('input', function () {
+    $(this).closest('.cfp-search-wrap').find('.cfp-search-clear').toggle(this.value.length > 0);
+});
+function clearKeyword() {
+    $('#fltKeyword').val('').trigger('keyup').trigger('input').focus();
+}
 function clearFilter(){$('#fltKeyword,#fltStatus').val('');tblApi.search('').draw();}
 function openModal(id){
   document.getElementById('fName').value=''; document.getElementById('fDesc').value='';

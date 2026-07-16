@@ -75,11 +75,8 @@ if ($action === 'delete') {
     $chk = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC);
 
     if ($chk && $chk['Cnt'] > 0) {
-        /* มีการใช้งานอยู่ → Soft delete (ปิดใช้งาน) แทนการลบจริง */
-        sqlsrv_query($conn, "UPDATE CFP_ElectricMeterType SET IsActive=0, UpdatedBy=?, UpdatedDate=GETDATE() WHERE TypeID=?",
-            array((int)$_SESSION['user_id'], $id));
-        logAction($conn, 'DATA_UPDATE', 'CFP_ElectricMeterType', $id, null, null, null, 'ปิดใช้งาน (มีการใช้งานอยู่)');
-        redirectWithToast('มีมิเตอร์ไฟฟ้าใช้ประเภทนี้อยู่ ระบบปิดใช้งานให้แทนการลบ');
+        /* มีการใช้งานอยู่ → บล็อกการลบ ให้ผู้ใช้ไปกดปิดใช้งาน (Toggle) เองแทน */
+        redirectWithToast('ไม่สามารถลบได้ เนื่องจากมีมิเตอร์ไฟฟ้า ' . (int)$chk['Cnt'] . ' รายการใช้ประเภทนี้อยู่ — กรุณาปิดใช้งานแทน หรือย้ายไปใช้ประเภทอื่นก่อน', 'error');
     }
 
     $rDel = sqlsrv_query($conn, "DELETE FROM CFP_ElectricMeterType WHERE TypeID=?", array($id));

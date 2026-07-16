@@ -46,26 +46,24 @@ if ($action === 'toggle') {
 if ($action === 'delete') {
     $id = (int)($_POST['SiteID'] ?? 0);
     if (!$id) { redirectWithToast('ไม่พบข้อมูลสถานที่', 'error'); }
-    $hasUsage = false;
+    $usageCnt = 0;
 
     /* เช็ค CFP_WasteAsset (มี FK บังคับจริง: DisposalSiteID)
        และ CFP_Waste (ตารางเดิม/legacy: คอลัมน์ชื่อ WasteDisposalSiteID) */
     $res = @sqlsrv_query($conn, "SELECT COUNT(*) AS Cnt FROM CFP_WasteAsset WHERE DisposalSiteID = ?", array($id));
     if ($res !== false) {
         $chk = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC);
-        $hasUsage = $hasUsage || ($chk && $chk['Cnt'] > 0);
+        $usageCnt += $chk ? (int)$chk['Cnt'] : 0;
     }
     $res2 = @sqlsrv_query($conn, "SELECT COUNT(*) AS Cnt FROM CFP_Waste WHERE WasteDisposalSiteID = ?", array($id));
     if ($res2 !== false) {
         $chk2 = sqlsrv_fetch_array($res2, SQLSRV_FETCH_ASSOC);
-        $hasUsage = $hasUsage || ($chk2 && $chk2['Cnt'] > 0);
+        $usageCnt += $chk2 ? (int)$chk2['Cnt'] : 0;
     }
 
-    if ($hasUsage) {
-        sqlsrv_query($conn, "UPDATE CFP_WasteDisposalSite SET IsActive=0, UpdatedBy=?, UpdatedDate=GETDATE() WHERE SiteID=?",
-            array((int)$_SESSION['user_id'], $id));
-        logAction($conn, 'DATA_UPDATE', 'CFP_WasteDisposalSite', $id, null, null, null, 'ปิดใช้งาน (มีการใช้งานอยู่)');
-        redirectWithToast('มีข้อมูลขยะใช้สถานที่นี้อยู่ ระบบปิดใช้งานให้แทนการลบ');
+    if ($usageCnt > 0) {
+        /* มีการใช้งานอยู่ → บล็อกการลบ ให้ผู้ใช้ไปกดปิดใช้งาน (Toggle) เองแทน */
+        redirectWithToast('ไม่สามารถลบได้ เนื่องจากมีข้อมูลขยะ ' . $usageCnt . ' รายการใช้สถานที่นี้อยู่ — กรุณาปิดใช้งานแทน หรือย้ายไปใช้สถานที่อื่นก่อน', 'error');
     }
     $rDel = sqlsrv_query($conn, "DELETE FROM CFP_WasteDisposalSite WHERE SiteID=?", array($id));
     if ($rDel === false) {
