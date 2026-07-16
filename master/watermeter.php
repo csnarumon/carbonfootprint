@@ -108,7 +108,7 @@ $pageIcon  = 'droplet-half';
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-<link href="/carbonfootprint/assets/css/cfp-theme.css" rel="stylesheet">
+<link href="/carbonfootprint/assets/css/cfp-theme.css?v=<?php echo filemtime('../assets/css/cfp-theme.css'); ?>" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/gh/kartik-v/bootstrap-fileinput@5.5.0/css/fileinput.min.css" rel="stylesheet">
 <style>
@@ -268,14 +268,14 @@ body{font-family:'Prompt',sans-serif;}
         <table id="tblWM" class="table table-bordered table-hover align-middle" style="width:100%;font-size:0.85rem">
             <thead>
                 <tr>
-                    <th style="width:40px">#</th>
-                    <th style="width:110px">รหัส</th>
+                    <th class="cfp-th-expand"></th>
+                    <th class="cfp-th-num" style="width:40px">#</th>
                     <th>ชื่อมิเตอร์</th>
-                    <th style="width:130px">ประเภทมิเตอร์</th>
-                    <th style="width:120px">แหล่งน้ำ</th>
-                    <th style="width:110px">Site</th>
+                    <th class="cfp-col-hide" style="width:130px">ประเภทมิเตอร์</th>
+                    <th class="cfp-col-hide" style="width:120px">แหล่งน้ำ</th>
+                    <th class="cfp-col-hide" style="width:110px">Site</th>
                     <th class="text-center" style="width:80px">สถานะ</th>
-                    <th class="text-center" style="width:70px">จัดการ</th>
+                    <th class="cfp-col-hide text-center" style="width:70px">จัดการ</th>
                 </tr>
             </thead>
             <tbody>
@@ -284,15 +284,16 @@ body{font-family:'Prompt',sans-serif;}
                     data-site="<?php echo htmlspecialchars($r['SiteName'] ?? ''); ?>"
                     data-type="<?php echo htmlspecialchars($r['MeterTypeName'] ?? ''); ?>"
                     data-source="<?php echo htmlspecialchars($r['WaterSourceName'] ?? ''); ?>">
-                    <td><?php echo $i+1; ?></td>
-                    <td><code><?php echo htmlspecialchars($r['MeterCode']); ?></code></td>
+                    <td class="cfp-td-expand text-center" style="padding:4px;width:32px;"></td>
+                    <td class="cfp-td-num"><?php echo $i+1; ?></td>
                     <td>
                         <div class="fw-500"><?php echo htmlspecialchars($r['MeterName']); ?></div>
+                        <div><code style="font-size:0.7rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['MeterCode']); ?></code></div>
                         <?php if (!empty($r['MeterNo'])) { ?><div style="font-size:0.72rem;color:var(--cfp-text-muted)">เลขมิเตอร์: <?php echo htmlspecialchars($r['MeterNo']); ?></div><?php } ?>
                     </td>
-                    <td><?php echo htmlspecialchars($r['MeterTypeName']??'—'); ?></td>
-                    <td><?php echo htmlspecialchars($r['WaterSourceName']??'—'); ?></td>
-                    <td><?php echo htmlspecialchars($r['SiteName']??'—'); ?></td>
+                    <td class="cfp-col-hide"><?php echo htmlspecialchars($r['MeterTypeName']??'—'); ?></td>
+                    <td class="cfp-col-hide"><?php echo htmlspecialchars($r['WaterSourceName']??'—'); ?></td>
+                    <td class="cfp-col-hide"><?php echo htmlspecialchars($r['SiteName']??'—'); ?></td>
                     <td class="text-center">
                         <?php if ($r['IsActive']) { ?>
                             <span class="status-dot" style="background:#4CAF50;"></span><span style="font-size:0.78rem;color:#2E7D32;"> ใช้งาน</span>
@@ -300,13 +301,17 @@ body{font-family:'Prompt',sans-serif;}
                             <span class="status-dot" style="background:#ccc;"></span><span style="font-size:0.78rem;color:#9E9E9E;"> ปิด</span>
                         <?php } ?>
                     </td>
-                    <td class="text-center">
-                        <button class="btn btn-outline-primary btn-action me-1" onclick="openModal(<?php echo (int)$r['MeterID']; ?>)" title="แก้ไข"><i class="bi bi-pencil-square"></i></button>
-                        <button class="btn btn-action <?php echo $r['IsActive']?'btn-outline-danger':'btn-outline-success'; ?>"
-                                onclick="confirmToggle(<?php echo (int)$r['MeterID']; ?>,<?php echo $r['IsActive']?1:0; ?>,'<?php echo htmlspecialchars(addslashes($r['MeterName'])); ?>')"
-                                title="<?php echo $r['IsActive']?'ปิด':'เปิด'; ?>">
-                            <i class="bi bi-<?php echo $r['IsActive']?'toggle2-off':'toggle2-on'; ?>"></i>
-                        </button>
+                    <td class="cfp-col-hide text-center">
+                        <div class="cfp-action-group">
+                            <button class="btn btn-outline-primary btn-action me-1 cfp-act-primary" onclick="openModal(<?php echo (int)$r['MeterID']; ?>)" title="แก้ไข"><i class="bi bi-pencil-square"></i><span class="cfp-act-label">แก้ไข</span></button>
+                            <div class="cfp-act-secondary">
+                                <button class="btn btn-action <?php echo $r['IsActive']?'btn-outline-danger':'btn-outline-success'; ?> cfp-act-toggle"
+                                        onclick="confirmToggle(<?php echo (int)$r['MeterID']; ?>,<?php echo $r['IsActive']?1:0; ?>,'<?php echo htmlspecialchars(addslashes($r['MeterName'])); ?>')"
+                                        title="<?php echo $r['IsActive']?'ปิด':'เปิด'; ?>">
+                                    <i class="bi bi-<?php echo $r['IsActive']?'toggle2-off':'toggle2-on'; ?>"></i><span class="cfp-act-label"><?php echo $r['IsActive']?'ปิด':'เปิด'; ?></span>
+                                </button>
+                            </div>
+                        </div>
                     </td>
                 </tr>
                 <?php } ?>
@@ -387,6 +392,7 @@ body{font-family:'Prompt',sans-serif;}
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://cdn.jsdelivr.net/gh/kartik-v/bootstrap-fileinput@5.5.0/js/fileinput.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/kartik-v/bootstrap-fileinput@5.5.0/themes/fas/theme.min.js"></script>
+<script src="../assets/js/cfp-table-mobile.js"></script>
 <script>
 var currentAssetID = 0;
 var savedPreviewFiles = [];
@@ -885,7 +891,9 @@ document.addEventListener('DOMContentLoaded', function() {
         order: [[1, 'asc']],
         pageLength: 25,
         dom: 'lrtip',
-        searching: true
+        searching: true,
+        columnDefs: [{ targets: 0, orderable: false, searchable: false }],
+        drawCallback: function () { cfpInitMobileExpand('tblWM'); }
     });
 
     // ✅ ซ่อน Search Box ของ DataTable (ใช้ custom แทน)
@@ -929,6 +937,8 @@ document.addEventListener('DOMContentLoaded', function() {
     var toastMsg = <?php echo json_encode($toastMsg, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;
     var toastErr = <?php echo json_encode($toastType === 'error', JSON_HEX_TAG); ?>;
     if (toastMsg) showToast(toastMsg, toastErr);
+
+    cfpBindMobileExpand('tblWM');
 });
 
 // ============================================================

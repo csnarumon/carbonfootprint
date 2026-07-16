@@ -1271,6 +1271,76 @@ table td:has(> button.btn) {
   white-space: nowrap;
 }
 
+/* =========================================================
+   Mobile table accordion — คอลัมน์หลัก + แตะแถวเพื่อขยายดูรายละเอียด
+   ใช้ร่วมกับ cfp-table-mobile.js (initMobileExpand)
+   marking: th/td.cfp-col-hide = ซ่อนบนมือถือ (ไปอยู่ในแถวรายละเอียด)
+            th/td.cfp-td-num / cfp-th-num = คอลัมน์ # (ซ่อนบนมือถือ)
+            th/td.cfp-th-expand / cfp-td-expand = คอลัมน์ปุ่มขยาย (มือถือเท่านั้น)
+   ========================================================= */
+.cfp-expand-btn {
+  font-family: "bootstrap-icons";
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--cfp-hover, #EEF6F8); color: var(--cfp-primary, #2AABB8);
+  border: 1.5px solid var(--cfp-border, #D0E8EE);
+  font-size: 0.75rem; cursor: pointer; vertical-align: middle;
+  transition: transform 0.2s ease, background 0.15s;
+  user-select: none; flex-shrink: 0;
+}
+.cfp-expand-btn.expanded {
+  transform: rotate(90deg); background: var(--cfp-primary, #2AABB8); color: #fff;
+  border-color: var(--cfp-primary, #2AABB8); box-shadow: 0 2px 6px rgba(42,171,184,0.3);
+}
+.cfp-detail-row > td { padding: 0 !important; border-top: none !important; }
+.cfp-detail-body { background: #F0FAFB; border-left: 3px solid var(--cfp-primary, #2AABB8); padding: 8px 14px; }
+.cfp-detail-item { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--cfp-border, #D0E8EE); font-size: 0.82rem; }
+.cfp-detail-item:last-child { border-bottom: none; }
+.cfp-detail-label { font-weight: 600; color: var(--cfp-text-mid, #567); min-width: 110px; flex-shrink: 0; }
+.cfp-detail-value { color: var(--cfp-text, #1B3A4A); }
+
+.cfp-act-label { display: none; }
+
+@media (min-width: 768px) {
+  .cfp-expand-btn { display: none !important; }
+  .cfp-detail-row { display: none !important; }
+  table th.cfp-th-expand,
+  table td.cfp-td-expand { display: none !important; }
+  /* desktop: wrapper div หายไปจาก layout ปุ่มกลับมาเรียงแบบเดิมเป๊ะ */
+  .cfp-action-group, .cfp-action-group .cfp-act-secondary { display: contents; }
+}
+@media (max-width: 767px) {
+  table th.cfp-th-num,
+  table td.cfp-td-num { display: none !important; }
+  table th.cfp-th-expand { width: 32px; padding: 4px !important; text-align: center; }
+
+  /* ปุ่มจัดการในแถวขยาย — แก้ไข เต็มแถวเดี่ยว, เปิด-ปิด/ลบ เรียงคู่กันด้านล่าง
+     !important กัน .btn-action / .btn ของแต่ละหน้าที่ประกาศ width/height ตายตัวมาทับ */
+  .cfp-detail-value .cfp-action-group {
+    display: flex !important; flex-direction: column !important; gap: 7px !important; width: 100% !important;
+  }
+  .cfp-detail-value .cfp-act-primary {
+    width: 100% !important; height: 42px !important; border-radius: 9px !important;
+    font-size: 0.8rem !important; font-weight: 600 !important; margin: 0 !important; padding: 0 16px !important;
+    background: var(--cfp-primary, #2AABB8) !important; color: #fff !important; border-color: var(--cfp-primary, #2AABB8) !important;
+    display: flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important;
+  }
+  .cfp-detail-value .cfp-act-secondary {
+    display: flex !important; flex-direction: row !important; gap: 10px !important; width: 100% !important; margin: 0 !important;
+  }
+  .cfp-detail-value .cfp-act-secondary button {
+    flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; height: auto !important; min-height: 40px !important;
+    border-radius: 9px !important; font-size: 0.72rem !important; font-weight: 600 !important; margin: 0 !important;
+    padding: 6px 14px !important; white-space: nowrap !important; text-align: center !important; line-height: 1.25 !important;
+    display: flex !important; flex-wrap: nowrap !important; align-items: center !important; justify-content: center !important; gap: 6px !important;
+  }
+  .cfp-detail-value .cfp-act-secondary button .bi { font-size: 0.85rem; flex-shrink: 0; }
+  /* ปุ่ม "เปิด/ปิดใช้งาน" ข้อความยาวกว่า "ลบ" — ให้พื้นที่มากกว่า */
+  .cfp-detail-value .cfp-act-secondary .cfp-act-toggle { flex: 1.6 1 0 !important; }
+  .cfp-detail-value .cfp-act-secondary .cfp-act-del { flex: 1 1 0 !important; }
+  .cfp-detail-value .cfp-act-label { display: inline !important; }
+}
+
 /* ปุ่ม Import Excel */
 .btn-cfp-import {
   font-family: 'Prompt', sans-serif; font-size: 0.82rem;

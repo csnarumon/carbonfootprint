@@ -127,7 +127,7 @@ $pageIcon  = 'gear-wide-connected';
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-  <link href="/carbonfootprint/assets/css/cfp-theme.css" rel="stylesheet">
+  <link href="/carbonfootprint/assets/css/cfp-theme.css?v=<?php echo filemtime('../assets/css/cfp-theme.css'); ?>" rel="stylesheet">
 
   <!-- Krajee FileInput + Font Awesome -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -351,14 +351,14 @@ $pageIcon  = 'gear-wide-connected';
         <table id="tblEquipment" class="table table-bordered table-hover align-middle" style="width:100%">
           <thead>
             <tr>
-              <th style="width:40px">#</th>
-              <th style="width:110px">รหัส</th>
+              <th class="cfp-th-expand"></th>
+              <th class="cfp-th-num" style="width:40px">#</th>
               <th>ชื่อเครื่องจักร</th>
-              <th style="width:130px">ประเภท</th>
-              <th style="width:120px">Site</th>
-              <th style="width:120px">เชื้อเพลิง</th>
+              <th class="cfp-col-hide" style="width:130px">ประเภท</th>
+              <th class="cfp-col-hide" style="width:120px">Site</th>
+              <th class="cfp-col-hide" style="width:120px">เชื้อเพลิง</th>
               <th class="text-center" style="width:80px">สถานะ</th>
-              <th class="text-center" style="width:90px">จัดการ</th>
+              <th class="cfp-col-hide text-center" style="width:90px">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -367,19 +367,20 @@ $pageIcon  = 'gear-wide-connected';
                 data-site="<?php echo htmlspecialchars($r['SiteName'] ?? ''); ?>"
                 data-type="<?php echo htmlspecialchars($r['EquipmentTypeName'] ?? ''); ?>"
                 data-fuel="<?php echo htmlspecialchars($r['FuelTypeName'] ?? ''); ?>">
-              <td><?php echo $i+1; ?></td>
-              <td><code><?php echo htmlspecialchars($r['EquipmentCode']); ?></code></td>
+              <td class="cfp-td-expand text-center" style="padding:4px;width:32px;"></td>
+              <td class="cfp-td-num"><?php echo $i+1; ?></td>
               <td>
                 <div class="fw-500"><?php echo htmlspecialchars($r['EquipmentName']); ?></div>
+                <div><code style="font-size:0.7rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['EquipmentCode']); ?></code></div>
                 <?php if (!empty($r['Remark'])) { ?>
                 <div style="font-size:0.72rem;color:var(--cfp-text-muted);">
                   <?php echo htmlspecialchars($r['Remark']); ?>
                 </div>
                 <?php } ?>
               </td>
-              <td><?php echo htmlspecialchars($r['EquipmentTypeName'] ?? '—'); ?></td>
-              <td><?php echo htmlspecialchars($r['SiteName'] ?? '—'); ?></td>
-              <td><?php echo htmlspecialchars($r['FuelTypeName'] ?? '—'); ?></td>
+              <td class="cfp-col-hide"><?php echo htmlspecialchars($r['EquipmentTypeName'] ?? '—'); ?></td>
+              <td class="cfp-col-hide"><?php echo htmlspecialchars($r['SiteName'] ?? '—'); ?></td>
+              <td class="cfp-col-hide"><?php echo htmlspecialchars($r['FuelTypeName'] ?? '—'); ?></td>
               <td class="text-center">
                 <?php if ($r['IsActive']) { ?>
                   <span class="status-dot" style="background:#4CAF50;"></span><span style="font-size:0.78rem;color:#2E7D32;"> ใช้งาน</span>
@@ -387,17 +388,21 @@ $pageIcon  = 'gear-wide-connected';
                   <span class="status-dot" style="background:#ccc;"></span><span style="font-size:0.78rem;color:#9E9E9E;"> ปิด</span>
                 <?php } ?>
               </td>
-              <td class="text-center">
-                <button class="btn btn-outline-primary btn-sm py-0 px-2 me-1"
-                        onclick="openModal(<?php echo $r['EquipmentID']; ?>)"
-                        title="แก้ไข">
-                  <i class="bi bi-pencil"></i>
-                </button>
-                <button class="btn btn-outline-<?php echo $r['IsActive'] ? 'danger' : 'success'; ?> btn-sm py-0 px-2"
-                        onclick="confirmToggle(<?php echo $r['EquipmentID']; ?>, <?php echo $r['IsActive'] ? 1 : 0; ?>, '<?php echo htmlspecialchars(addslashes($r['EquipmentName'])); ?>')"
-                        title="<?php echo $r['IsActive'] ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?>">
-                  <i class="bi bi-<?php echo $r['IsActive'] ? 'toggle-on' : 'toggle-off'; ?>"></i>
-                </button>
+              <td class="cfp-col-hide text-center">
+                <div class="cfp-action-group">
+                  <button class="btn btn-outline-primary btn-sm py-0 px-2 me-1 cfp-act-primary"
+                          onclick="openModal(<?php echo $r['EquipmentID']; ?>)"
+                          title="แก้ไข">
+                    <i class="bi bi-pencil"></i><span class="cfp-act-label">แก้ไข</span>
+                  </button>
+                  <div class="cfp-act-secondary">
+                    <button class="btn btn-outline-<?php echo $r['IsActive'] ? 'danger' : 'success'; ?> btn-sm py-0 px-2 cfp-act-toggle"
+                            onclick="confirmToggle(<?php echo $r['EquipmentID']; ?>, <?php echo $r['IsActive'] ? 1 : 0; ?>, '<?php echo htmlspecialchars(addslashes($r['EquipmentName'])); ?>')"
+                            title="<?php echo $r['IsActive'] ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?>">
+                      <i class="bi bi-<?php echo $r['IsActive'] ? 'toggle-on' : 'toggle-off'; ?>"></i><span class="cfp-act-label"><?php echo $r['IsActive'] ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?></span>
+                    </button>
+                  </div>
+                </div>
               </td>
             </tr>
             <?php } ?>
@@ -548,6 +553,7 @@ $pageIcon  = 'gear-wide-connected';
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="../assets/js/cfp-table-mobile.js"></script>
 
 <!-- Krajee FileInput JS (ต้องโหลดหลัง jQuery) -->
 <script src="https://cdn.jsdelivr.net/gh/kartik-v/bootstrap-fileinput@5.5.0/js/fileinput.min.js"></script>
@@ -1071,11 +1077,15 @@ document.addEventListener('DOMContentLoaded', function() {
         order     : [[1, 'asc']],
         pageLength: 25,
         dom       : 'lrtip',
-        searching : true
+        searching : true,
+        columnDefs: [{ targets: 0, orderable: false, searchable: false }],
+        drawCallback: function () { cfpInitMobileExpand('tblEquipment'); }
     });
 
     // ✅ ซ่อน Search Box ของ DataTable (ใช้ custom แทน)
     $('#tblEquipment_filter').hide();
+
+    cfpBindMobileExpand('tblEquipment');
 
     // ===== Custom Search =====
     $('#fltKeyword').on('keyup', function() {

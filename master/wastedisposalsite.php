@@ -87,7 +87,7 @@ if ($resU2) {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-  <link href="../assets/css/cfp-theme.css" rel="stylesheet">
+  <link href="../assets/css/cfp-theme.css?v=<?php echo filemtime('../assets/css/cfp-theme.css'); ?>" rel="stylesheet">
   <style>
     body { font-family: 'Prompt', sans-serif; }
     .font-prompt { font-family: 'Prompt', sans-serif !important; }
@@ -177,14 +177,15 @@ if ($resU2) {
           <table id="tblType" class="table table-bordered table-hover align-middle" style="width:100%">
             <thead>
               <tr>
-                <th style="width:40px;">#</th>
+                <th class="cfp-th-expand"></th>
+                <th class="cfp-th-num" style="width:40px;">#</th>
                 <th style="min-width:180px;">ชื่อสถานที่</th>
-                <th style="width:130px;">จังหวัด</th>
-                <th>คำอธิบาย</th>
-                <th class="text-center" style="width:80px;">ลำดับ</th>
-                <th class="text-center" style="width:150px;">จำนวนทรัพย์สินที่ใช้</th>
+                <th class="cfp-col-hide" style="width:130px;">จังหวัด</th>
+                <th class="cfp-col-hide">คำอธิบาย</th>
+                <th class="cfp-col-hide text-center" style="width:80px;">ลำดับ</th>
+                <th class="cfp-col-hide text-center" style="width:150px;">จำนวนทรัพย์สินที่ใช้</th>
                 <th class="text-center" style="width:90px;">สถานะ</th>
-                <th class="text-center" style="width:110px;">จัดการ</th>
+                <th class="cfp-col-hide text-center" style="width:110px;">จัดการ</th>
               </tr>
             </thead>
             <tbody>
@@ -192,7 +193,8 @@ if ($resU2) {
                 $usedN = $usageByType[(int)$r['SiteID']] ?? 0;
               ?>
               <tr data-status="<?php echo $r['IsActive'] ? '1' : '0'; ?>">
-                <td><?php echo $i + 1; ?></td>
+                <td class="cfp-td-expand text-center" style="padding:4px;width:32px;"></td>
+                <td class="cfp-td-num"><?php echo $i + 1; ?></td>
                 <td>
                   <span style="white-space:nowrap;"><?php echo htmlspecialchars($r['SiteName']); ?></span>
                   <div><code style="font-size:0.7rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['SiteCode']); ?></code></div>
@@ -200,12 +202,12 @@ if ($resU2) {
                     <div style="font-size:0.75rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['Address']); ?></div>
                   <?php } ?>
                 </td>
-                <td style="font-size:0.82rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['Province'] ?? '—'); ?></td>
-                <td class="text-muted" style="font-size:0.7rem;color:#6c757d;">
+                <td class="cfp-col-hide" style="font-size:0.82rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['Province'] ?? '—'); ?></td>
+                <td class="cfp-col-hide text-muted" style="font-size:0.7rem;color:#6c757d;">
                   <?php echo htmlspecialchars($r['Description'] ?? '—'); ?>
                 </td>
-                 <td class="text-center"><?php echo (int)$r['SortOrder']; ?></td>
-                <td class="text-center">
+                 <td class="cfp-col-hide text-center"><?php echo (int)$r['SortOrder']; ?></td>
+                <td class="cfp-col-hide text-center">
                   <?php if ($usedN > 0) { ?>
                     <span class="badge" style="background:#FFF3E0;color:#E65100;font-weight:600;" title="มีการนำไปใช้ — ลบไม่ได้ ต้องปิดใช้งานแทน">
                       นำไปใช้ <?php echo $usedN; ?> รายการ
@@ -225,18 +227,24 @@ if ($resU2) {
                     <span style="font-size:0.78rem;color:#9E9E9E;">ปิด</span>
                   <?php } ?>
                 </td>
-                <td class="text-center">
-                  <button class="btn btn-outline-primary btn-action me-1" onclick="openModal(<?php echo (int)$r['SiteID']; ?>)" title="แก้ไข">
-                    <i class="bi bi-pencil-square"></i>
-                  </button>
-                  <button class="btn btn-action <?php echo $r['IsActive'] ? 'btn-outline-danger' : 'btn-outline-success'; ?> me-1"
-                          onclick="confirmToggle(<?php echo (int)$r['SiteID']; ?>, <?php echo $r['IsActive'] ? 1 : 0; ?>, '<?php echo htmlspecialchars(addslashes($r['SiteName'])); ?>')"
-                          title="<?php echo $r['IsActive'] ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?>">
-                    <i class="bi bi-<?php echo $r['IsActive'] ? 'toggle2-off' : 'toggle2-on'; ?>"></i>
-                  </button>
-                  <button class="btn btn-outline-warning btn-action" onclick="confirmDelete(<?php echo (int)$r['SiteID']; ?>, '<?php echo htmlspecialchars(addslashes($r['SiteName'])); ?>')" title="ลบ">
-                    <i class="bi bi-trash"></i>
-                  </button>
+                <td class="cfp-col-hide text-center">
+                  <div class="cfp-action-group">
+                    <button class="btn btn-outline-primary btn-action me-1 cfp-act-primary"
+                            onclick="openModal(<?php echo (int)$r['SiteID']; ?>)" title="แก้ไข">
+                      <i class="bi bi-pencil-square"></i><span class="cfp-act-label">แก้ไข</span>
+                    </button>
+                    <div class="cfp-act-secondary">
+                      <button class="btn btn-action <?php echo $r['IsActive'] ? 'btn-outline-danger' : 'btn-outline-success'; ?> me-1 cfp-act-toggle"
+                              onclick="confirmToggle(<?php echo (int)$r['SiteID']; ?>, <?php echo $r['IsActive'] ? 1 : 0; ?>, '<?php echo htmlspecialchars(addslashes($r['SiteName'])); ?>')"
+                              title="<?php echo $r['IsActive'] ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?>">
+                        <i class="bi bi-<?php echo $r['IsActive'] ? 'toggle2-off' : 'toggle2-on'; ?>"></i><span class="cfp-act-label"><?php echo $r['IsActive'] ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?></span>
+                      </button>
+                      <button class="btn btn-outline-warning btn-action cfp-act-del"
+                              onclick="confirmDelete(<?php echo (int)$r['SiteID']; ?>, '<?php echo htmlspecialchars(addslashes($r['SiteName'])); ?>')" title="ลบ">
+                        <i class="bi bi-trash"></i><span class="cfp-act-label">ลบ</span>
+                      </button>
+                    </div>
+                  </div>
                 </td>
               </tr>
               <?php } ?>
@@ -378,6 +386,7 @@ if ($resU2) {
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="../assets/js/cfp-table-mobile.js"></script>
 <script>
 var typeData = <?php
     $map = array();
@@ -406,12 +415,16 @@ var tblTypeApi;
 $(document).ready(function () {
     tblTypeApi = $('#tblType').DataTable({
         language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/th.json' },
-        order: [[4, 'asc']], pageLength: 25,
+        order: [[5, 'asc']], pageLength: 25,
         lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-        dom: '<"row align-items-center mb-2"<"col-auto"l><"col">>rtip'
+        dom: '<"row align-items-center mb-2"<"col-auto"l><"col">>rtip',
+        columnDefs: [{ targets: 0, orderable: false, searchable: false }],
+        drawCallback: function () { cfpInitMobileExpand('tblType'); }
     });
     $('#fltKeyword').on('keyup', function () { tblTypeApi.search(this.value).draw(); });
     $('#fltStatus').on('change', function () { tblTypeApi.draw(); });
+
+    cfpBindMobileExpand('tblType');
 });
 
 $('#fltKeyword').on('input', function () {

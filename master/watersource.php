@@ -118,7 +118,7 @@ if ($stmt !== false) {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-  <link href="/carbonfootprint/assets/css/cfp-theme.css" rel="stylesheet">
+  <link href="/carbonfootprint/assets/css/cfp-theme.css?v=<?php echo filemtime('../assets/css/cfp-theme.css'); ?>" rel="stylesheet">
 </head>
 <body>
 <div class="d-flex">
@@ -148,23 +148,26 @@ if ($stmt !== false) {
           <table id="tblLookup" class="table table-hover" style="width:100%;">
             <thead>
               <tr>
-                <th style="width:50px;">#</th>
-                <th style="width:120px;">รหัส</th>
+                <th class="cfp-th-expand"></th>
+                <th class="cfp-th-num" style="width:50px;">#</th>
                 <th>ชื่อ</th>
-                <th>คำอธิบาย</th>
-                <th style="width:80px;">ลำดับ</th>
+                <th class="cfp-col-hide">คำอธิบาย</th>
+                <th class="cfp-col-hide" style="width:80px;">ลำดับ</th>
                 <th style="width:100px;">สถานะ</th>
-                <th style="width:100px;">จัดการ</th>
+                <th class="cfp-col-hide" style="width:100px;">จัดการ</th>
               </tr>
             </thead>
             <tbody>
               <?php $i = 1; foreach ($rows as $row) { ?>
               <tr>
-                <td><?php echo $i++; ?></td>
-                <td><strong style="color:var(--cfp-primary);"><?php echo htmlspecialchars($row['TypeCode']); ?></strong></td>
-                <td><?php echo htmlspecialchars($row['TypeName']); ?></td>
-                <td><?php echo htmlspecialchars($row['Description'] ?? ''); ?></td>
-                <td><?php echo (int)$row['SortOrder']; ?></td>
+                <td class="cfp-td-expand text-center" style="padding:4px;width:32px;"></td>
+                <td class="cfp-td-num"><?php echo $i++; ?></td>
+                <td>
+                  <?php echo htmlspecialchars($row['TypeName']); ?>
+                  <div><code style="font-size:0.7rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($row['TypeCode']); ?></code></div>
+                </td>
+                <td class="cfp-col-hide"><?php echo htmlspecialchars($row['Description'] ?? ''); ?></td>
+                <td class="cfp-col-hide"><?php echo (int)$row['SortOrder']; ?></td>
                 <td>
                   <?php if ($row['IsActive']) { ?>
                     <span class="badge-cfp-active">ใช้งาน</span>
@@ -172,18 +175,20 @@ if ($stmt !== false) {
                     <span class="badge-cfp-inactive">ปิดใช้งาน</span>
                   <?php } ?>
                 </td>
-                <td>
-                  <div style="display:flex;gap:5px;">
-                    <button class="btn-cfp-icon btn-cfp-icon-edit"
+                <td class="cfp-col-hide">
+                  <div class="cfp-action-group">
+                    <button class="btn-cfp-icon btn-cfp-icon-edit cfp-act-primary"
                             onclick='editRow(<?php echo json_encode($row); ?>)'
                             title="แก้ไข">
-                      <i class="bi bi-pencil-fill"></i>
+                      <i class="bi bi-pencil-fill"></i><span class="cfp-act-label">แก้ไข</span>
                     </button>
-                    <button class="btn-cfp-icon btn-cfp-icon-del"
-                            onclick="deleteRow(<?php echo (int)$row['SourceID']; ?>, '<?php echo htmlspecialchars($row['TypeName'], ENT_QUOTES); ?>')"
-                            title="ลบ">
-                      <i class="bi bi-trash3-fill"></i>
-                    </button>
+                    <div class="cfp-act-secondary">
+                      <button class="btn-cfp-icon btn-cfp-icon-del cfp-act-del"
+                              onclick="deleteRow(<?php echo (int)$row['SourceID']; ?>, '<?php echo htmlspecialchars($row['TypeName'], ENT_QUOTES); ?>')"
+                              title="ลบ">
+                        <i class="bi bi-trash3-fill"></i><span class="cfp-act-label">ลบ</span>
+                      </button>
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -304,6 +309,7 @@ if ($stmt !== false) {
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+<script src="../assets/js/cfp-table-mobile.js"></script>
 <script>
 var modalForm   = new bootstrap.Modal(document.getElementById('modalForm'));
 var modalImport = new bootstrap.Modal(document.getElementById('modalImport'));
@@ -315,8 +321,11 @@ $(document).ready(function () {
         pageLength: 25,
         lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
         dom: '<"row align-items-center mb-2"<"col-auto"l><"col"f>>rtip',
-        columnDefs: [{ orderable: false, targets: 6 }]
+        columnDefs: [{ targets: 0, orderable: false, searchable: false }, { orderable: false, targets: 6 }],
+        drawCallback: function () { cfpInitMobileExpand('tblLookup'); }
     });
+
+    cfpBindMobileExpand('tblLookup');
 });
 
 /* ===== Add/Edit Modal ===== */

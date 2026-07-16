@@ -78,7 +78,7 @@ if ($resUsed !== false) {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-  <link href="../assets/css/cfp-theme.css" rel="stylesheet">
+  <link href="../assets/css/cfp-theme.css?v=<?php echo filemtime('../assets/css/cfp-theme.css'); ?>" rel="stylesheet">
 
   <style>
     body { font-family: 'Prompt', sans-serif; }
@@ -230,25 +230,27 @@ if ($resUsed !== false) {
           <table id="tblUnit" class="table table-bordered table-hover align-middle" style="width:100%">
             <thead>
               <tr>
-                <th style="width:40px;">#</th>
+                <th class="cfp-th-expand"></th>
+                <th class="cfp-th-num" style="width:40px;">#</th>
                 <th>ชื่อหน่วย</th>
-                <th style="width:130px;">ประเภทหน่วย</th>
-                <th>คำอธิบาย</th>
-                <th class="text-center" style="width:70px;">ลำดับ</th>
+                <th class="cfp-col-hide" style="width:130px;">ประเภทหน่วย</th>
+                <th class="cfp-col-hide">คำอธิบาย</th>
+                <th class="cfp-col-hide text-center" style="width:70px;">ลำดับ</th>
                 <th class="text-center" style="width:90px;">สถานะ</th>
-                <th class="text-center" style="width:90px;">จัดการ</th>
+                <th class="cfp-col-hide text-center" style="width:90px;">จัดการ</th>
               </tr>
             </thead>
             <tbody>
               <?php foreach ($rows as $i => $r) { ?>
               <tr data-status="<?php echo $r['IsActive'] ? '1' : '0'; ?>"
                   data-type="<?php echo (int)($r['UnitTypeID'] ?? 0); ?>">
-                <td><?php echo $i + 1; ?></td>
+                <td class="cfp-td-expand text-center" style="padding:4px;width:32px;"></td>
+                <td class="cfp-td-num"><?php echo $i + 1; ?></td>
                 <td>
                   <?php echo htmlspecialchars($r['UnitName']); ?>
                   <div><code style="font-size:0.7rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['UnitCode']); ?></code></div>
                 </td>
-                <td>
+                <td class="cfp-col-hide">
                   <?php if (!empty($r['TypeName'])) { ?>
                     <?php
                     /* Palette สีคงที่ — วนสีตาม UnitTypeID เพื่อให้แต่ละประเภทได้สีต่างกัน
@@ -261,10 +263,10 @@ if ($resUsed !== false) {
                     —
                   <?php } ?>
                 </td>
-                <td style="font-size:0.82rem;color:var(--cfp-text-muted);">
+                <td class="cfp-col-hide" style="font-size:0.82rem;color:var(--cfp-text-muted);">
                   <?php echo htmlspecialchars($r['Description'] ?? '—'); ?>
                 </td>
-                <td class="text-center"><?php echo (int)$r['SortOrder']; ?></td>
+                <td class="cfp-col-hide text-center"><?php echo (int)$r['SortOrder']; ?></td>
                 <td class="text-center">
                   <?php if ($r['IsActive']) { ?>
                     <span class="status-dot" style="background:#4CAF50;"></span>
@@ -274,21 +276,25 @@ if ($resUsed !== false) {
                     <span style="font-size:0.78rem;color:#9E9E9E;">ปิด</span>
                   <?php } ?>
                 </td>
-                <td class="text-center">
-                  <button class="btn btn-outline-primary btn-action me-1"
-                          onclick="openModal(<?php echo (int)$r['UnitID']; ?>)" title="แก้ไข">
-                    <i class="bi bi-pencil-square"></i>
-                  </button>
-                  <button class="btn btn-action <?php echo $r['IsActive'] ? 'btn-outline-danger' : 'btn-outline-success'; ?> me-1"
-                          onclick="confirmToggle(<?php echo (int)$r['UnitID']; ?>, <?php echo $r['IsActive'] ? 1 : 0; ?>, '<?php echo htmlspecialchars(addslashes($r['UnitName'])); ?>')"
-                          title="<?php echo $r['IsActive'] ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?>">
-                    <i class="bi bi-<?php echo $r['IsActive'] ? 'toggle2-off' : 'toggle2-on'; ?>"></i>
-                  </button>
-                  <button class="btn btn-outline-warning btn-action"
-                          onclick="confirmDelete(<?php echo (int)$r['UnitID']; ?>, '<?php echo htmlspecialchars(addslashes($r['UnitName'])); ?>')"
-                          title="ลบ">
-                    <i class="bi bi-trash"></i>
-                  </button>
+                <td class="cfp-col-hide text-center">
+                  <div class="cfp-action-group">
+                    <button class="btn btn-outline-primary btn-action me-1 cfp-act-primary"
+                            onclick="openModal(<?php echo (int)$r['UnitID']; ?>)" title="แก้ไข">
+                      <i class="bi bi-pencil-square"></i><span class="cfp-act-label">แก้ไข</span>
+                    </button>
+                    <div class="cfp-act-secondary">
+                      <button class="btn btn-action <?php echo $r['IsActive'] ? 'btn-outline-danger' : 'btn-outline-success'; ?> me-1 cfp-act-toggle"
+                              onclick="confirmToggle(<?php echo (int)$r['UnitID']; ?>, <?php echo $r['IsActive'] ? 1 : 0; ?>, '<?php echo htmlspecialchars(addslashes($r['UnitName'])); ?>')"
+                              title="<?php echo $r['IsActive'] ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?>">
+                        <i class="bi bi-<?php echo $r['IsActive'] ? 'toggle2-off' : 'toggle2-on'; ?>"></i><span class="cfp-act-label"><?php echo $r['IsActive'] ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?></span>
+                      </button>
+                      <button class="btn btn-outline-warning btn-action cfp-act-del"
+                              onclick="confirmDelete(<?php echo (int)$r['UnitID']; ?>, '<?php echo htmlspecialchars(addslashes($r['UnitName'])); ?>')"
+                              title="ลบ">
+                        <i class="bi bi-trash"></i><span class="cfp-act-label">ลบ</span>
+                      </button>
+                    </div>
+                  </div>
                 </td>
               </tr>
               <?php } ?>
@@ -459,6 +465,7 @@ if ($resUsed !== false) {
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="../assets/js/cfp-table-mobile.js"></script>
 
 <script>
 var unitData = <?php
@@ -491,10 +498,12 @@ var tblApi;
 $(document).ready(function () {
     tblApi = $('#tblUnit').DataTable({
         language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/th.json' },
-        order:      [[5, 'asc'], [2, 'asc']],
+        order:      [[6, 'asc'], [3, 'asc']],
         pageLength: 25,
         lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-        dom: '<"row align-items-center mb-2"<"col-auto"l><"col">>rtip'
+        dom: '<"row align-items-center mb-2"<"col-auto"l><"col">>rtip',
+        columnDefs: [{ targets: 0, orderable: false, searchable: false }],
+        drawCallback: function () { cfpInitMobileExpand('tblUnit'); }
     });
 
     $('#fltKeyword').on('keyup', function () {
@@ -503,6 +512,8 @@ $(document).ready(function () {
     $('#fltType, #fltStatus').on('change', function () {
         tblApi.draw();
     });
+
+    cfpBindMobileExpand('tblUnit');
 });
 
 $('#fltKeyword').on('input', function () {

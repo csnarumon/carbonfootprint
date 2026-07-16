@@ -121,7 +121,7 @@ $pageIcon  = 'truck';
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-  <link href="/carbonfootprint/assets/css/cfp-theme.css" rel="stylesheet">
+  <link href="/carbonfootprint/assets/css/cfp-theme.css?v=<?php echo filemtime('../assets/css/cfp-theme.css'); ?>" rel="stylesheet">
 
   <!-- Krajee FileInput + Font Awesome -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -321,15 +321,15 @@ $pageIcon  = 'truck';
         <table id="tblVehicle" class="table table-bordered table-hover align-middle" style="width:100%">
           <thead>
             <tr>
-              <th style="width:40px">#</th>
-              <th style="width:110px">รหัส</th>
+              <th class="cfp-th-expand"></th>
+              <th class="cfp-th-num" style="width:40px">#</th>
               <th style="width:120px">ทะเบียนรถ</th>
-              <th style="width:140px">ประเภท</th>
-              <th style="width:120px">เชื้อเพลิง</th>
-              <th style="width:110px">การเผาไหม้</th>
-              <th style="width:100px">Site</th>
+              <th class="cfp-col-hide" style="width:140px">ประเภท</th>
+              <th class="cfp-col-hide" style="width:120px">เชื้อเพลิง</th>
+              <th class="cfp-col-hide" style="width:110px">การเผาไหม้</th>
+              <th class="cfp-col-hide" style="width:100px">Site</th>
               <th class="text-center" style="width:80px">สถานะ</th>
-              <th class="text-center" style="width:90px">จัดการ</th>
+              <th class="cfp-col-hide text-center" style="width:90px">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -338,13 +338,16 @@ $pageIcon  = 'truck';
                 data-site="<?php echo htmlspecialchars($r['SiteName'] ?? ''); ?>"
                 data-type="<?php echo htmlspecialchars($r['VehicleTypeName'] ?? ''); ?>"
                 data-fuel="<?php echo htmlspecialchars($r['FuelTypeName'] ?? ''); ?>">
-              <td><?php echo $i + 1; ?></td>
-              <td><code><?php echo htmlspecialchars($r['VehicleCode']); ?></code></td>
-              <td><?php echo htmlspecialchars($r['LicensePlate'] ?? '—'); ?></td>
-              <td><?php echo htmlspecialchars($r['VehicleTypeName'] ?? '—'); ?></td>
-              <td><?php echo htmlspecialchars($r['FuelTypeName'] ?? '—'); ?></td>
-              <td><span style="font-size:0.78rem;"><?php echo $r['CombustionType'] ?? '—'; ?></span></td>
-              <td><?php echo htmlspecialchars($r['SiteName'] ?? '—'); ?></td>
+              <td class="cfp-td-expand text-center" style="padding:4px;width:32px;"></td>
+              <td class="cfp-td-num"><?php echo $i + 1; ?></td>
+              <td>
+                <?php echo htmlspecialchars($r['LicensePlate'] ?? '—'); ?>
+                <div><code style="font-size:0.7rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['VehicleCode']); ?></code></div>
+              </td>
+              <td class="cfp-col-hide"><?php echo htmlspecialchars($r['VehicleTypeName'] ?? '—'); ?></td>
+              <td class="cfp-col-hide"><?php echo htmlspecialchars($r['FuelTypeName'] ?? '—'); ?></td>
+              <td class="cfp-col-hide"><span style="font-size:0.78rem;"><?php echo $r['CombustionType'] ?? '—'; ?></span></td>
+              <td class="cfp-col-hide"><?php echo htmlspecialchars($r['SiteName'] ?? '—'); ?></td>
               <td class="text-center">
                 <?php if ($r['IsActive']) { ?>
                   <span class="status-dot" style="background:#4CAF50;"></span><span style="font-size:0.78rem;color:#2E7D32;"> ใช้งาน</span>
@@ -352,16 +355,20 @@ $pageIcon  = 'truck';
                   <span class="status-dot" style="background:#ccc;"></span><span style="font-size:0.78rem;color:#9E9E9E;"> ปิด</span>
                 <?php } ?>
               </td>
-              <td class="text-center">
-                <button class="btn btn-outline-primary btn-action me-1"
-                        onclick="openModal(<?php echo $r['VehicleID']; ?>)" title="แก้ไข">
-                  <i class="bi bi-pencil-square"></i>
-                </button>
-                <button class="btn btn-action <?php echo $r['IsActive'] ? 'btn-outline-danger' : 'btn-outline-success'; ?>"
-                        onclick="confirmToggle(<?php echo $r['VehicleID']; ?>, <?php echo $r['IsActive'] ? 1 : 0; ?>, '<?php echo htmlspecialchars(addslashes($r['VehicleName'])); ?>')"
-                        title="<?php echo $r['IsActive'] ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?>">
-                  <i class="bi bi-<?php echo $r['IsActive'] ? 'toggle2-off' : 'toggle2-on'; ?>"></i>
-                </button>
+              <td class="cfp-col-hide text-center">
+                <div class="cfp-action-group">
+                  <button class="btn btn-outline-primary btn-action me-1 cfp-act-primary"
+                          onclick="openModal(<?php echo $r['VehicleID']; ?>)" title="แก้ไข">
+                    <i class="bi bi-pencil-square"></i><span class="cfp-act-label">แก้ไข</span>
+                  </button>
+                  <div class="cfp-act-secondary">
+                    <button class="btn btn-action <?php echo $r['IsActive'] ? 'btn-outline-danger' : 'btn-outline-success'; ?> cfp-act-toggle"
+                            onclick="confirmToggle(<?php echo $r['VehicleID']; ?>, <?php echo $r['IsActive'] ? 1 : 0; ?>, '<?php echo htmlspecialchars(addslashes($r['VehicleName'])); ?>')"
+                            title="<?php echo $r['IsActive'] ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?>">
+                      <i class="bi bi-<?php echo $r['IsActive'] ? 'toggle2-off' : 'toggle2-on'; ?>"></i><span class="cfp-act-label"><?php echo $r['IsActive'] ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?></span>
+                    </button>
+                  </div>
+                </div>
               </td>
             </tr>
             <?php } ?>
@@ -510,6 +517,7 @@ $pageIcon  = 'truck';
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="../assets/js/cfp-table-mobile.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/kartik-v/bootstrap-fileinput@5.5.0/js/fileinput.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/kartik-v/bootstrap-fileinput@5.5.0/themes/fas/theme.min.js"></script>
 
@@ -1011,11 +1019,15 @@ document.addEventListener('DOMContentLoaded', function() {
         order     : [[1, 'asc']],
         pageLength: 25,
         dom       : 'lrtip',
-        searching : true  // ✅ เปิดใช้งาน search เพื่อให้ table.search() ทำงาน
+        searching : true,  // ✅ เปิดใช้งาน search เพื่อให้ table.search() ทำงาน
+        columnDefs: [{ targets: 0, orderable: false, searchable: false }],
+        drawCallback: function () { cfpInitMobileExpand('tblVehicle'); }
     });
 
     // ✅ ซ่อน Search Box ของ DataTable (ใช้ custom แทน)
     $('#tblVehicle_filter').hide();
+
+    cfpBindMobileExpand('tblVehicle');
 
     // ===== Custom Search =====
     $('#fltKeyword').on('keyup', function() {

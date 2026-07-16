@@ -237,9 +237,15 @@ foreach ($allItems as $it) {
                   $cat   = htmlspecialchars($ef['Category'] ?? '');
               ?>
               <tr data-efid="<?php echo $efid; ?>"
+                  data-efcode="<?php echo htmlspecialchars($ef['EFCode'] ?? ''); ?>"
+                  data-efnamedisplay="<?php echo htmlspecialchars($ef['EFName'] ?? ''); ?>"
                   data-scope="<?php echo $scope; ?>"
                   data-scopeno="<?php echo $sno; ?>"
                   data-category="<?php echo htmlspecialchars($ef['Category'] ?? ''); ?>"
+                  data-gastype="<?php echo htmlspecialchars($ef['GasType'] ?? ''); ?>"
+                  data-efvalue="<?php echo (float)$ef['EFValue']; ?>"
+                  data-unit="<?php echo htmlspecialchars($ef['Unit'] ?? ''); ?>"
+                  data-year="<?php echo (int)$ef['YearApply']; ?>"
                   data-efname="<?php echo htmlspecialchars(strtolower($ef['EFName'])); ?>">
                 <td style="color:var(--cfp-text-muted);font-size:0.72rem;"><?php echo $idx+1; ?></td>
                 <td>
@@ -557,7 +563,10 @@ function saveAll() {
             if (data.ok) {
                 pairs.forEach(function(p) {
                     var tr = document.querySelector('#efTable tbody tr[data-efid="' + p.efid + '"]');
-                    if (tr) { tr.remove(); }
+                    if (tr) {
+                        appendToLinkedTable(tr, p.itemID);
+                        tr.remove();
+                    }
                     delete pending[p.efid];
                 });
                 /* อัปเดต KPI ผูกแล้วใน DB */
@@ -743,6 +752,51 @@ function appendToSection1(srcTr) {
 
     /* แสดง save bar และอัปเดต counter */
     document.getElementById('linkSaveBar').style.display = '';
+}
+
+function appendToLinkedTable(srcTr, itemID) {
+    var efid   = srcTr.dataset.efid;
+    var efcode = srcTr.dataset.efcode        || '';
+    var efname = srcTr.dataset.efnamedisplay || '';
+    var scope  = srcTr.dataset.scope         || '';
+    var efval  = parseFloat(srcTr.dataset.efvalue) || 0;
+    var unit   = srcTr.dataset.unit          || '';
+    var year   = srcTr.dataset.year          || '';
+
+    var item = ITEMS.filter(function (it) { return it.id === parseInt(itemID); })[0];
+    var itemCode = item ? item.code : '';
+    var itemName = item ? item.name : '';
+
+    var scopeColor = scope === 'Scope1' ? '#2AABB8' : (scope === 'Scope2' ? '#F59E0B' : '#8B5CF6');
+
+    var tbody = document.querySelector('#linkedTable tbody');
+    if (!tbody) { return; }
+
+    var tr = document.createElement('tr');
+    tr.dataset.efid           = efid;
+    tr.dataset.efcode         = efcode;
+    tr.dataset.efnamedisplay  = efname;
+    tr.dataset.efname         = efname.toLowerCase();
+    tr.dataset.scope          = scope;
+    tr.dataset.category       = srcTr.dataset.category || '';
+    tr.dataset.gastype        = srcTr.dataset.gastype   || '';
+    tr.dataset.efvalue        = efval;
+    tr.dataset.unit           = unit;
+    tr.dataset.year           = year;
+    tr.innerHTML =
+        '<td class="text-center"><input type="checkbox" class="chk-unlink" value="' + efid + '" onchange="onUnlinkCheck(this)"></td>' +
+        '<td><div style="font-weight:500;white-space:nowrap;">' + efname + '</div><code style="font-size:0.68rem;color:var(--cfp-text-muted);">' + efcode + '</code></td>' +
+        '<td><span style="font-size:0.7rem;padding:2px 8px;border-radius:10px;color:#fff;font-weight:600;background:' + scopeColor + ';">' + scope + '</span></td>' +
+        '<td style="font-family:monospace;font-size:0.82rem;color:var(--cfp-primary);font-weight:600;">' +
+            efval.toFixed(6) +
+            (unit ? '<span style="font-size:0.72rem;color:var(--cfp-text-muted);margin-left:4px;">' + unit + '</span>' : '') +
+        '</td>' +
+        '<td style="font-size:0.82rem;">' + year + '</td>' +
+        '<td>' + (itemCode
+            ? '<span class="badge-linked"><i class="bi bi-link-45deg"></i>' + itemCode + ' — ' + itemName + '</span>'
+            : '<span style="font-size:0.72rem;color:var(--cfp-text-muted);">— ไม่พบ Item —</span>') + '</td>';
+
+    tbody.appendChild(tr);
 }
 
 function showToast(msg, type) {

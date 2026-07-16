@@ -98,7 +98,7 @@ $pageIcon = 'trash3';
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-    <link href="/carbonfootprint/assets/css/cfp-theme.css" rel="stylesheet">
+    <link href="/carbonfootprint/assets/css/cfp-theme.css?v=<?php echo filemtime('../assets/css/cfp-theme.css'); ?>" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/gh/kartik-v/bootstrap-fileinput@5.5.0/css/fileinput.min.css" rel="stylesheet">
     <style>
@@ -285,14 +285,14 @@ $pageIcon = 'trash3';
         <table id="tblWaste" class="table table-bordered table-hover align-middle" style="width:100%;font-size:0.85rem">
             <thead>
                 <tr>
-                    <th style="width:40px">#</th>
-                    <th style="width:110px">รหัส</th>
+                    <th class="cfp-th-expand"></th>
+                    <th class="cfp-th-num" style="width:40px">#</th>
                     <th>ชื่อขยะ/ของเสีย</th>
-                    <th style="width:130px">ประเภทขยะ</th>
-                    <th style="width:130px">วิธีกำจัด</th>
-                    <th style="width:110px">Site</th>
+                    <th style="width:130px" class="cfp-col-hide">ประเภทขยะ</th>
+                    <th style="width:130px" class="cfp-col-hide">วิธีกำจัด</th>
+                    <th style="width:110px" class="cfp-col-hide">Site</th>
                     <th class="text-center" style="width:80px">สถานะ</th>
-                    <th class="text-center" style="width:70px">จัดการ</th>
+                    <th class="text-center cfp-col-hide" style="width:70px">จัดการ</th>
                 </tr>
             </thead>
             <tbody>
@@ -301,19 +301,20 @@ $pageIcon = 'trash3';
                     data-site="<?php echo htmlspecialchars($r['SiteName'] ?? ''); ?>"
                     data-type="<?php echo htmlspecialchars($r['WasteTypeName'] ?? ''); ?>"
                     data-method="<?php echo htmlspecialchars($r['DisposalMethodName'] ?? ''); ?>">
-                    <td><?php echo $i + 1; ?></td>
-                    <td><code><?php echo htmlspecialchars($r['WasteCode']); ?></code></td>
+                    <td class="cfp-td-expand text-center" style="padding:4px;width:32px;"></td>
+                    <td class="cfp-td-num"><?php echo $i + 1; ?></td>
                     <td>
                         <div class="fw-500"><?php echo htmlspecialchars($r['WasteName']); ?></div>
+                        <div><code style="font-size:0.7rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['WasteCode']); ?></code></div>
                         <?php if (!empty($r['StorageLocation'])) { ?>
                         <div style="font-size:0.72rem;color:var(--cfp-text-muted)">
                             <i class="bi bi-geo-alt me-1"></i><?php echo htmlspecialchars($r['StorageLocation']); ?>
                         </div>
                         <?php } ?>
                     </td>
-                    <td><?php echo htmlspecialchars($r['WasteTypeName'] ?? '—'); ?></td>
-                    <td><?php echo htmlspecialchars($r['DisposalMethodName'] ?? '—'); ?></td>
-                    <td><?php echo htmlspecialchars($r['SiteName'] ?? '—'); ?></td>
+                    <td class="cfp-col-hide"><?php echo htmlspecialchars($r['WasteTypeName'] ?? '—'); ?></td>
+                    <td class="cfp-col-hide"><?php echo htmlspecialchars($r['DisposalMethodName'] ?? '—'); ?></td>
+                    <td class="cfp-col-hide"><?php echo htmlspecialchars($r['SiteName'] ?? '—'); ?></td>
                     <td class="text-center">
                         <?php if ($r['IsActive']) { ?>
                             <span class="status-dot" style="background:#4CAF50;"></span>
@@ -323,17 +324,21 @@ $pageIcon = 'trash3';
                             <span style="font-size:0.78rem;color:#9E9E9E;"> ปิด</span>
                         <?php } ?>
                     </td>
-                    <td class="text-center">
-                        <button class="btn btn-outline-primary btn-action me-1" 
-                                onclick="openModal(<?php echo (int)$r['WasteID']; ?>)" 
-                                title="แก้ไข">
-                            <i class="bi bi-pencil-square"></i>
-                        </button>
-                        <button class="btn btn-action <?php echo $r['IsActive'] ? 'btn-outline-danger' : 'btn-outline-success'; ?>"
-                                onclick="confirmToggle(<?php echo (int)$r['WasteID']; ?>, <?php echo $r['IsActive'] ? 1 : 0; ?>, '<?php echo htmlspecialchars(addslashes($r['WasteName'])); ?>')"
-                                title="<?php echo $r['IsActive'] ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?>">
-                            <i class="bi bi-<?php echo $r['IsActive'] ? 'toggle2-off' : 'toggle2-on'; ?>"></i>
-                        </button>
+                    <td class="text-center cfp-col-hide">
+                        <div class="cfp-action-group">
+                            <button class="btn btn-outline-primary btn-action me-1 cfp-act-primary"
+                                    onclick="openModal(<?php echo (int)$r['WasteID']; ?>)"
+                                    title="แก้ไข">
+                                <i class="bi bi-pencil-square"></i><span class="cfp-act-label">แก้ไข</span>
+                            </button>
+                            <div class="cfp-act-secondary">
+                                <button class="btn btn-action <?php echo $r['IsActive'] ? 'btn-outline-danger' : 'btn-outline-success'; ?> cfp-act-toggle"
+                                        onclick="confirmToggle(<?php echo (int)$r['WasteID']; ?>, <?php echo $r['IsActive'] ? 1 : 0; ?>, '<?php echo htmlspecialchars(addslashes($r['WasteName'])); ?>')"
+                                        title="<?php echo $r['IsActive'] ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?>">
+                                    <i class="bi bi-<?php echo $r['IsActive'] ? 'toggle2-off' : 'toggle2-on'; ?>"></i><span class="cfp-act-label"><?php echo $r['IsActive'] ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?></span>
+                                </button>
+                            </div>
+                        </div>
                     </td>
                 </tr>
                 <?php } ?>
@@ -466,6 +471,7 @@ $pageIcon = 'trash3';
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://cdn.jsdelivr.net/gh/kartik-v/bootstrap-fileinput@5.5.0/js/fileinput.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/kartik-v/bootstrap-fileinput@5.5.0/themes/fas/theme.min.js"></script>
+<script src="../assets/js/cfp-table-mobile.js"></script>
 
 <script>
 // ============================================================
@@ -951,7 +957,9 @@ document.addEventListener('DOMContentLoaded', function() {
         order: [[1, 'asc']],
         pageLength: 25,
         dom: 'lrtip',
-        searching: true
+        searching: true,
+        columnDefs: [{ targets: 0, orderable: false, searchable: false }],
+        drawCallback: function () { cfpInitMobileExpand('tblWaste'); }
     });
 
     // ✅ ซ่อน Search Box ของ DataTable (ใช้ custom แทน)
@@ -995,6 +1003,8 @@ document.addEventListener('DOMContentLoaded', function() {
     var toastMsg = <?php echo json_encode($toastMsg, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;
     var toastErr = <?php echo json_encode($toastType === 'error', JSON_HEX_TAG); ?>;
     if (toastMsg) showToast(toastMsg, toastErr);
+
+    cfpBindMobileExpand('tblWaste');
 });
 
 // ============================================================

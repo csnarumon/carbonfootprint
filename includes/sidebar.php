@@ -110,6 +110,58 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
     line-height: 1;
     flex-shrink: 0;
 }
+
+/* ค้นหาเมนู */
+.nav-search-wrap {
+    position: relative;
+    margin: 8px 14px 10px;
+    flex-shrink: 0;
+}
+.nav-search-wrap input {
+    width: 100%;
+    background: var(--cfp-bg, #F3F8F9);
+    border: 1px solid var(--cfp-border, #D0E8EE);
+    border-radius: 9px;
+    color: var(--cfp-text, #1B3A4A);
+    font-family: 'Prompt', sans-serif;
+    font-size: 0.78rem;
+    padding: 7px 30px;
+    outline: none;
+}
+.nav-search-wrap input:focus {
+    border-color: var(--cfp-primary, #2AABB8);
+}
+.nav-search-wrap input::placeholder {
+    color: var(--cfp-text-muted, #6B8A92);
+}
+.nav-search-wrap .bi-search {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.78rem;
+    color: var(--cfp-text-muted, #6B8A92);
+    pointer-events: none;
+}
+.nav-search-wrap .nav-search-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: var(--cfp-text-muted, #6B8A92);
+    font-size: 0.85rem;
+    display: none;
+}
+.nav-label mark {
+    background: #FFE9A8;
+    color: #7A5A00;
+    border-radius: 3px;
+    padding: 0 1px;
+}
+.nav-section-collapsible.nav-search-dim {
+    opacity: 0.32;
+}
 </style>
 
 <nav class="cfp-sidebar theme-card" id="cfpSidebar">
@@ -144,6 +196,12 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
             <i class="bi bi-grid-1x2-fill"></i>
             <span>Dashboard</span>
         </a>
+
+        <div class="nav-search-wrap">
+            <i class="bi bi-search"></i>
+            <input type="text" id="navSearchInput" placeholder="ค้นหาเมนู..." autocomplete="off">
+            <i class="bi bi-x-circle-fill nav-search-clear" id="navSearchClear"></i>
+        </div>
 
         <?php
         // ── 1. บันทึกข้อมูล ──────────────────────────────
@@ -335,6 +393,17 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
         }
     }
 
+    /* ── 1b. เปิดหมวดที่มีหน้าปัจจุบันอยู่เสมอ (ทับ state ที่บันทึกไว้เฉพาะหมวดนี้) ── */
+    var activeLink = document.querySelector('.nav-section-inner .nav-link.active');
+    if (activeLink) {
+        var activeSection = activeLink.closest('.nav-section-collapsible');
+        if (activeSection) {
+            activeSection.classList.add('open');
+            var activeBody = activeSection.querySelector('.nav-section-body');
+            if (activeBody) { activeBody.classList.add('show'); }
+        }
+    }
+
     /* ── 2. บันทึก menu state ── */
     function saveMenuState() {
         var states = [];
@@ -401,6 +470,93 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
             link.addEventListener('click', function() {
                 sessionStorage.setItem(SCROLL_KEY, navScroll.scrollTop);
             });
+        });
+    }
+
+    /* ── 7. ค้นหาเมนู — กรองข้ามทุกหมวด ไม่ยิง request ── */
+    var searchInput = document.getElementById('navSearchInput');
+    var searchClear = document.getElementById('navSearchClear');
+    if (searchInput) {
+        var searchSections = document.querySelectorAll('.nav-section-collapsible');
+
+        function escapeHtml(s) {
+            return s.replace(/[&<>"']/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+
+        function clearSearch() {
+            searchInput.value = '';
+            searchClear.style.display = 'none';
+            searchSections.forEach(function (sec) {
+                sec.classList.remove('nav-search-dim');
+                sec.querySelectorAll('.nav-label').forEach(function (label) {
+                    label.textContent = label.textContent; /* ล้าง <mark> ที่ใส่ไว้ */
+                });
+            });
+            /* คืนสถานะเปิด/ปิดตาม localStorage เดิม */
+            var saved = localStorage.getItem(STATE_KEY);
+            if (saved) {
+                try {
+                    var states = JSON.parse(saved);
+                    searchSections.forEach(function (sec, i) {
+                        var isOpen = (states[i] !== undefined) ? states[i] : true;
+                        var body = sec.querySelector('.nav-section-body');
+                        sec.classList.toggle('open', isOpen);
+                        if (body) { body.classList.toggle('show', isOpen); }
+                    });
+                } catch (e) { /* เงียบไว้ */ }
+            }
+            if (activeLink) {
+                var activeSection2 = activeLink.closest('.nav-section-collapsible');
+                if (activeSection2) {
+                    activeSection2.classList.add('open');
+                    var b = activeSection2.querySelector('.nav-section-body');
+                    if (b) { b.classList.add('show'); }
+                }
+            }
+        }
+
+        searchInput.addEventListener('input', function () {
+            var q = searchInput.value.trim().toLowerCase();
+            searchClear.style.display = q ? '' : 'none';
+
+            if (!q) { clearSearch(); return; }
+
+            searchSections.forEach(function (sec) {
+                var body  = sec.querySelector('.nav-section-body');
+                var links = sec.querySelectorAll('.nav-section-inner .nav-link');
+                var hasMatch = false;
+
+                links.forEach(function (link) {
+                    var label = link.querySelector('.nav-label');
+                    if (!label) { return; }
+                    var text = label.textContent;
+                    var idx  = text.toLowerCase().indexOf(q);
+                    if (idx === -1) {
+                        label.textContent = text; /* ล้าง mark เดิม */
+                        return;
+                    }
+                    hasMatch = true;
+                    var before = escapeHtml(text.slice(0, idx));
+                    var match  = escapeHtml(text.slice(idx, idx + q.length));
+                    var after  = escapeHtml(text.slice(idx + q.length));
+                    label.innerHTML = before + '<mark>' + match + '</mark>' + after;
+                });
+
+                if (hasMatch) {
+                    sec.classList.remove('nav-search-dim');
+                    sec.classList.add('open');
+                    if (body) { body.classList.add('show'); }
+                } else {
+                    sec.classList.add('nav-search-dim');
+                }
+            });
+        });
+
+        searchClear.addEventListener('click', function () {
+            clearSearch();
+            searchInput.focus();
         });
     }
 
