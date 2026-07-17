@@ -80,7 +80,7 @@ $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-  <link href="../assets/css/cfp-theme.css" rel="stylesheet">
+  <link href="../assets/css/cfp-theme.css?v=<?php echo filemtime('../assets/css/cfp-theme.css'); ?>" rel="stylesheet">
   <style>
     body { font-family:'Prompt',sans-serif; }
     .font-prompt { font-family:'Prompt',sans-serif !important; }
@@ -204,16 +204,17 @@ $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>
           <table id="tblEF" class="table table-bordered table-hover align-middle" style="width:100%;font-size:0.82rem;">
             <thead>
               <tr>
-                <th style="width:32px;">#</th>
+                <th class="cfp-th-expand"></th>
+                <th class="cfp-th-num" style="width:32px;">#</th>
                 <th style="min-width:280px;">ชื่อ EF / รายการ</th>
-                <th style="width:56px;" class="text-center">Scope</th>
-                <th style="width:60px;" class="text-center">Gas</th>
-                <th style="width:95px;" class="text-center">ค่า EF</th>
-                <th style="width:50px;" class="text-center">GWP</th>
-                <th style="width:56px;" class="text-center">ปี</th>
-                <th style="width:100px;" class="text-center">แหล่งอ้างอิง</th>
+                <th class="cfp-col-hide text-center" style="width:56px;">Scope</th>
+                <th class="cfp-col-hide text-center" style="width:60px;">Gas</th>
+                <th class="cfp-col-hide text-center" style="width:95px;">ค่า EF</th>
+                <th class="cfp-col-hide text-center" style="width:50px;">GWP</th>
+                <th class="cfp-col-hide text-center" style="width:56px;">ปี</th>
+                <th class="cfp-col-hide text-center" style="width:100px;">แหล่งอ้างอิง</th>
                 <th style="width:72px;" class="text-center">สถานะ</th>
-                <th style="width:80px;" class="text-center">จัดการ</th>
+                <th class="cfp-col-hide text-center" style="width:80px;">จัดการ</th>
               </tr>
             </thead>
             <tbody>
@@ -225,7 +226,8 @@ $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>
                   data-scope="<?php echo htmlspecialchars($r['Scope']??''); ?>"
                   data-year="<?php echo $r['YearApply']??''; ?>"
                   data-source="<?php echo $r['SourceID']??''; ?>">
-                <td><?php echo $i+1; ?></td>
+                <td class="cfp-td-expand text-center" style="padding:4px;width:32px;"></td>
+                <td class="cfp-td-num"><?php echo $i+1; ?></td>
                 <td>
                   <div style="font-weight:500;"><?php echo htmlspecialchars($r['EFName']); ?></div>
                   <code style="font-size:0.7rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['EFCode']); ?></code>
@@ -235,33 +237,33 @@ $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>
                   </div>
                   <?php } ?>
                 </td>
-                <td class="text-center">
+                <td class="cfp-col-hide text-center">
                   <?php if ($r['Scope']) { ?>
                   <span class="scope-badge" style="background:<?php echo $sColor; ?>;">
                     <?php echo htmlspecialchars($r['Scope']); ?>
                   </span>
                   <?php } ?>
                 </td>
-                <td class="text-center">
+                <td class="cfp-col-hide text-center">
                   <?php if ($r['GasType']) { ?>
                   <span class="gas-badge" style="background:<?php echo $gColor; ?>;">
                     <?php echo htmlspecialchars($r['GasType']); ?>
                   </span>
                   <?php } ?>
                 </td>
-                <td class="text-center">
+                <td class="cfp-col-hide text-center">
                   <span class="ef-value"><?php echo number_format((float)$r['EFValue'], 6); ?></span>
                   <div style="font-size:0.68rem;color:var(--cfp-text-muted);">
                     <?php echo htmlspecialchars($r['Unit']??''); ?>
                   </div>
                 </td>
-                <td class="text-center" style="font-size:0.8rem;font-weight:500;">
+                <td class="cfp-col-hide text-center" style="font-size:0.8rem;font-weight:500;">
                   <?php echo number_format((float)$r['GWP'], 1); ?>
                 </td>
-                <td class="text-center" style="font-weight:600;color:var(--cfp-primary);">
+                <td class="cfp-col-hide text-center" style="font-weight:600;color:var(--cfp-primary);">
                   <?php echo $r['YearApply'] ?? '—'; ?>
                 </td>
-                <td class="text-center">
+                <td class="cfp-col-hide text-center">
                   <?php if (!empty($r['SourceCode'])) { ?>
                   <span style="font-size:0.72rem;background:#EEF6F8;color:#2AABB8;padding:2px 6px;border-radius:6px;font-weight:600;">
                     <?php echo htmlspecialchars($r['SourceCode']); ?>
@@ -294,20 +296,24 @@ $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>
                   }
                   ?>
                 </td>
-                <td class="text-center">
-                  <button class="btn btn-outline-primary btn-action me-1"
-                          onclick="openModal(<?php echo (int)$r['EFID']; ?>)" title="แก้ไข">
-                    <i class="bi bi-pencil-square"></i>
-                  </button>
-                  <button class="btn btn-outline-secondary btn-action me-1"
-                          onclick="viewHistory('<?php echo htmlspecialchars(addslashes($r['EFCode'])); ?>')" title="ดูประวัติการแก้ไข">
-                    <i class="bi bi-clock-history"></i>
-                  </button>
-                  <button class="btn btn-action <?php echo $r['IsActive']?'btn-outline-danger':'btn-outline-success'; ?>"
-                          onclick="confirmToggle(<?php echo (int)$r['EFID']; ?>,<?php echo $r['IsActive']?1:0; ?>,'<?php echo htmlspecialchars(addslashes($r['EFName'])); ?>')"
-                          title="<?php echo $r['IsActive']?'ปิด':'เปิด'; ?>">
-                    <i class="bi bi-<?php echo $r['IsActive']?'toggle2-off':'toggle2-on'; ?>"></i>
-                  </button>
+                <td class="cfp-col-hide text-center">
+                  <div class="cfp-action-group">
+                    <button class="btn btn-outline-primary btn-action me-1 cfp-act-primary"
+                            onclick="openModal(<?php echo (int)$r['EFID']; ?>)" title="แก้ไข">
+                      <i class="bi bi-pencil-square"></i><span class="cfp-act-label">แก้ไข</span>
+                    </button>
+                    <div class="cfp-act-secondary">
+                      <button class="btn btn-outline-secondary btn-action me-1 cfp-act-toggle"
+                              onclick="viewHistory('<?php echo htmlspecialchars(addslashes($r['EFCode'])); ?>')" title="ดูประวัติการแก้ไข">
+                        <i class="bi bi-clock-history"></i><span class="cfp-act-label">ประวัติ</span>
+                      </button>
+                      <button class="btn btn-action <?php echo $r['IsActive']?'btn-outline-danger':'btn-outline-success'; ?> cfp-act-del"
+                              onclick="confirmToggle(<?php echo (int)$r['EFID']; ?>,<?php echo $r['IsActive']?1:0; ?>,'<?php echo htmlspecialchars(addslashes($r['EFName'])); ?>')"
+                              title="<?php echo $r['IsActive']?'ปิด':'เปิด'; ?>">
+                        <i class="bi bi-<?php echo $r['IsActive']?'toggle2-off':'toggle2-on'; ?>"></i><span class="cfp-act-label"><?php echo $r['IsActive']?'ปิด':'เปิด'; ?></span>
+                      </button>
+                    </div>
+                  </div>
                 </td>
               </tr>
               <?php } ?>
@@ -550,6 +556,7 @@ $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="../assets/js/cfp-table-mobile.js"></script>
 <script>
 var efData = <?php
     $map = array();
@@ -592,12 +599,16 @@ var tblApi;
 $(document).ready(function() {
     tblApi = $('#tblEF').DataTable({
         language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/th.json' },
-        order: [[7,'desc'],[3,'asc'],[2,'asc']],
+        order: [[8,'desc'],[4,'asc'],[3,'asc']],
         pageLength: 25,
+        columnDefs: [{ targets: 0, orderable: false, searchable: false }],
+        drawCallback: function () { cfpInitMobileExpand('tblEF'); },
         dom: '<"row align-items-center mb-2"<"col-auto"l><"col">>rtip'
     });
     $('#fltKeyword').on('keyup', function() { tblApi.search(this.value).draw(); });
     $('#fltScope,#fltYear,#fltSource,#fltStatus').on('change', function() { tblApi.draw(); });
+
+    cfpBindMobileExpand('tblEF');
 });
 
 $('#fltKeyword').on('input', function () {

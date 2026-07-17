@@ -94,7 +94,7 @@ $scope2Labels = array(
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-  <link href="../assets/css/cfp-theme.css" rel="stylesheet">
+  <link href="../assets/css/cfp-theme.css?v=<?php echo filemtime('../assets/css/cfp-theme.css'); ?>" rel="stylesheet">
   <style>
     body { font-family:'Prompt',sans-serif; }
     .font-prompt { font-family:'Prompt',sans-serif !important; }
@@ -204,15 +204,16 @@ $scope2Labels = array(
           <table id="tblItem" class="table table-bordered table-hover align-middle" style="width:100%;font-size:0.85rem;">
             <thead>
               <tr>
-                <th style="width:40px;">#</th>
+                <th class="cfp-th-expand"></th>
+                <th class="cfp-th-num" style="width:40px;">#</th>
                 <th>ชื่อรายการ</th>
-                <th style="width:90px;" class="text-center">Scope</th>
-                <th style="width:120px;" class="text-center">Category / ประเภท</th>
-                <th style="width:80px;" class="text-center">หน่วย</th>
-                <th style="width:70px;" class="text-center">วิธีกรอก</th>
+                <th class="cfp-col-hide text-center" style="width:90px;">Scope</th>
+                <th class="cfp-col-hide text-center" style="width:120px;">Category / ประเภท</th>
+                <th class="cfp-col-hide text-center" style="width:80px;">หน่วย</th>
+                <th class="cfp-col-hide text-center" style="width:70px;">วิธีกรอก</th>
                 <th style="width:80px;" class="text-center">สถานะ</th>
-                <th style="width:110px;" class="text-center">Site</th>
-                <th style="width:110px;" class="text-center">จัดการ</th>
+                <th class="cfp-col-hide text-center" style="width:110px;">Site</th>
+                <th class="cfp-col-hide text-center" style="width:110px;">จัดการ</th>
               </tr>
             </thead>
             <tbody>
@@ -227,17 +228,18 @@ $scope2Labels = array(
               <tr data-status="<?php echo $r['IsActive']?'1':'0'; ?>"
                   data-scope="<?php echo $sNo; ?>"
                   data-cat="<?php echo $cNo??''; ?>">
-                <td><?php echo $i+1; ?></td>
+                <td class="cfp-td-expand text-center" style="padding:4px;width:32px;"></td>
+                <td class="cfp-td-num"><?php echo $i+1; ?></td>
                 <td>
                   <div style="font-weight:500;"><?php echo htmlspecialchars($r['ItemName']); ?></div>
                   <?php if (!empty($r['ItemNameEN'])) { ?>
                   <div style="font-size:0.72rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['ItemNameEN']); ?></div>
                   <?php } ?>
                 </td>
-                <td class="text-center">
+                <td class="cfp-col-hide text-center">
                   <span class="scope-badge" style="background:<?php echo $sColor; ?>;">Scope<?php echo $sNo; ?></span>
                 </td>
-                <td class="text-center">
+                <td class="cfp-col-hide text-center">
                   <?php if ($sNo === 3 && $cNo !== null) { ?>
                   <span class="cat-badge">Cat.<?php echo $cNo; ?></span>
                   <div style="font-size:0.68rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($catLabels[$cNo]??''); ?></div>
@@ -250,10 +252,10 @@ $scope2Labels = array(
                   <span style="color:var(--cfp-text-muted);font-size:0.75rem;">—</span>
                   <?php } ?>
                 </td>
-                <td class="text-center" style="font-size:0.78rem;color:var(--cfp-text-mid);">
+                <td class="cfp-col-hide text-center" style="font-size:0.78rem;color:var(--cfp-text-mid);">
                   <?php echo htmlspecialchars($r['UnitName']??'—'); ?>
                 </td>
-                <td class="text-center">
+                <td class="cfp-col-hide text-center">
                   <span style="font-size:0.72rem;color:var(--cfp-text-muted);">
                     <?php echo $inputLabels[(int)$r['InputMethod']]??'Manual'; ?>
                   </span>
@@ -267,7 +269,7 @@ $scope2Labels = array(
                     <span style="font-size:0.78rem;color:#9E9E9E;">ปิด</span>
                   <?php } ?>
                 </td>
-                <td>
+                <td class="cfp-col-hide">
                   <?php
                   /* คำนวณสี bg/text/border จาก scopeColor */
                   $sHex   = $scopeColors[$sNo] ?? '#999';
@@ -304,24 +306,25 @@ $scope2Labels = array(
                   </span>
                   <?php } ?>
                 </td>
-                <td class="text-center">
-                  <!-- แก้ไข -->
-                  <button class="btn btn-outline-primary btn-action me-1"
-                          onclick="openModal(<?php echo $itemID; ?>)" title="แก้ไข">
-                    <i class="bi bi-pencil-square"></i>
-                  </button>
-                  <!-- toggle -->
-                  <button class="btn btn-action <?php echo $r['IsActive']?'btn-outline-danger':'btn-outline-success'; ?> me-1"
-                          onclick="confirmToggle(<?php echo $itemID; ?>,<?php echo $r['IsActive']?1:0; ?>,'<?php echo htmlspecialchars(addslashes($r['ItemName'])); ?>')"
-                          title="<?php echo $r['IsActive']?'ปิดใช้งาน':'เปิดใช้งาน'; ?>">
-                    <i class="bi bi-<?php echo $r['IsActive']?'toggle2-off':'toggle2-on'; ?>"></i>
-                  </button>
-                  <!-- ลบ -->
-                  <button class="btn btn-outline-warning btn-action"
-                          onclick="confirmDelete(<?php echo $itemID; ?>,'<?php echo htmlspecialchars(addslashes($r['ItemName'])); ?>')"
-                          title="ลบ">
-                    <i class="bi bi-trash"></i>
-                  </button>
+                <td class="cfp-col-hide text-center">
+                  <div class="cfp-action-group">
+                    <button class="btn btn-outline-primary btn-action me-1 cfp-act-primary"
+                            onclick="openModal(<?php echo $itemID; ?>)" title="แก้ไข">
+                      <i class="bi bi-pencil-square"></i><span class="cfp-act-label">แก้ไข</span>
+                    </button>
+                    <div class="cfp-act-secondary">
+                      <button class="btn btn-action <?php echo $r['IsActive']?'btn-outline-danger':'btn-outline-success'; ?> me-1 cfp-act-toggle"
+                              onclick="confirmToggle(<?php echo $itemID; ?>,<?php echo $r['IsActive']?1:0; ?>,'<?php echo htmlspecialchars(addslashes($r['ItemName'])); ?>')"
+                              title="<?php echo $r['IsActive']?'ปิดใช้งาน':'เปิดใช้งาน'; ?>">
+                        <i class="bi bi-<?php echo $r['IsActive']?'toggle2-off':'toggle2-on'; ?>"></i><span class="cfp-act-label"><?php echo $r['IsActive']?'ปิดใช้งาน':'เปิดใช้งาน'; ?></span>
+                      </button>
+                      <button class="btn btn-outline-warning btn-action cfp-act-del"
+                              onclick="confirmDelete(<?php echo $itemID; ?>,'<?php echo htmlspecialchars(addslashes($r['ItemName'])); ?>')"
+                              title="ลบ">
+                        <i class="bi bi-trash"></i><span class="cfp-act-label">ลบ</span>
+                      </button>
+                    </div>
+                  </div>
                 </td>
               </tr>
               <?php } ?>
@@ -521,6 +524,7 @@ $scope2Labels = array(
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="../assets/js/cfp-table-mobile.js"></script>
 <script>
 /* Category options แยกตาม Scope — ใช้สลับ populate ช่อง #fCategoryNo เดียวกัน */
 var catOptionsScope2 = <?php echo json_encode($scope2Labels, JSON_UNESCAPED_UNICODE); ?>;
@@ -587,7 +591,7 @@ $(document).ready(function() {
 
     tblApi = $('#tblItem').DataTable({
         language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/th.json' },
-        order: [[2,'asc'],[3,'asc'],[0,'asc']],
+        order: [[3,'asc'],[4,'asc'],[1,'asc']],
         pageLength: 25,
         lengthMenu: [[10,25,50,100],[10,25,50,100]],
         dom: '<"row align-items-center mb-2"<"col-auto"l><"col">>rtip',
@@ -595,16 +599,18 @@ $(document).ready(function() {
         stateDuration: 3600,   /* จำไว้ 1 ชั่วโมง */
         autoWidth: false,      /* กันไม่ให้ DataTables คำนวณความกว้างคอลัมน์เองแล้วบีบ "ชื่อรายการ" จนแคบ */
         columnDefs: [
-            { targets: 0, width: '40px' },
-            { targets: 1, width: '32%' },   /* คอลัมน์ "ชื่อรายการ" */
-            { targets: 2, width: '90px' },
-            { targets: 3, width: '120px' },
-            { targets: 4, width: '80px' },
-            { targets: 5, width: '70px' },
-            { targets: 6, width: '80px' },
-            { targets: 7, width: '110px' },
-            { targets: 8, width: '110px', className: 'text-nowrap' }
-        ]
+            { targets: 0, orderable: false, searchable: false, width: '32px' },
+            { targets: 1, width: '40px' },
+            { targets: 2, width: '32%' },   /* คอลัมน์ "ชื่อรายการ" */
+            { targets: 3, width: '90px' },
+            { targets: 4, width: '120px' },
+            { targets: 5, width: '80px' },
+            { targets: 6, width: '70px' },
+            { targets: 7, width: '80px' },
+            { targets: 8, width: '110px' },
+            { targets: 9, width: '110px', className: 'text-nowrap' }
+        ],
+        drawCallback: function () { cfpInitMobileExpand('tblItem'); }
     });
 
     /* ── บันทึกค่า filter ทุกครั้งที่เปลี่ยน + re-apply ตอนโหลดหน้า ── */
@@ -620,6 +626,8 @@ $(document).ready(function() {
 
     /* re-apply ค่าที่กู้คืนมาตอนโหลดหน้าเสร็จ (ต้อง draw หลัง DataTable พร้อมแล้ว) */
     if (savedFlt.scope || savedFlt.cat || savedFlt.status) { tblApi.draw(); }
+
+    cfpBindMobileExpand('tblItem');
 });
 
 $('#fltKeyword').on('input', function () {

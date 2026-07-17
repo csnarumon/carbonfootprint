@@ -178,7 +178,7 @@ function getRoleBadge($roleID, $roleName) {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-  <link href="/carbonfootprint/assets/css/cfp-theme.css" rel="stylesheet">
+  <link href="/carbonfootprint/assets/css/cfp-theme.css?v=<?php echo filemtime('../assets/css/cfp-theme.css'); ?>" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     body { font-family: 'Prompt', sans-serif; }
@@ -459,13 +459,14 @@ function getRoleBadge($roleID, $roleName) {
               <table id="tblUsers" class="table table-bordered table-hover align-middle" style="width:100%;">
                 <thead>
                   <tr>
-                    <th style="width:40px;">#</th>
+                    <th class="cfp-th-expand"></th>
+                    <th class="cfp-th-num" style="width:40px;">#</th>
                     <th>ชื่อ-นามสกุล</th>
-                    <th>ฝ่าย / แผนก</th>
-                    <th>ตำแหน่ง</th>
-                    <th class="text-center">Role</th>
+                    <th class="cfp-col-hide">ฝ่าย / แผนก</th>
+                    <th class="cfp-col-hide">ตำแหน่ง</th>
+                    <th class="cfp-col-hide text-center">Role</th>
                     <th class="text-center" style="width:80px;">สถานะ</th>
-                    <th class="text-center" style="width:105px;">จัดการ</th>
+                    <th class="cfp-col-hide text-center" style="width:105px;">จัดการ</th>
                     <!-- hidden columns สำหรับ filter -->
                     <th class="d-none">company_id</th>
                     <th class="d-none">division_id</th>
@@ -490,7 +491,8 @@ function getRoleBadge($roleID, $roleName) {
                       data-division="<?php echo (int)$u['DivisionID']; ?>"
                       data-role="<?php echo (int)$u['RoleID']; ?>"
                       data-active="<?php echo $isActive ? '1' : '0'; ?>">
-                    <td><?php echo $i + 1; ?></td>
+                    <td class="cfp-td-expand text-center" style="padding:4px;width:32px;"></td>
+                    <td class="cfp-td-num"><?php echo $i + 1; ?></td>
                     <td>
                       <div class="d-flex align-items-center gap-2">
                         <div class="avatar-circle"><?php echo htmlspecialchars($initials); ?></div>
@@ -504,16 +506,16 @@ function getRoleBadge($roleID, $roleName) {
                         </div>
                       </div>
                     </td>
-                    <td style="font-size:0.82rem;">
+                    <td class="cfp-col-hide" style="font-size:0.82rem;">
                       <?php echo htmlspecialchars($u['DivisionName'] ?? '—'); ?>
                       <?php if (!empty($u['DeptName'])) { ?>
                         <span style="color:var(--cfp-text-muted);"> / <?php echo htmlspecialchars($u['DeptName']); ?></span>
                       <?php } ?>
                     </td>
-                    <td style="font-size:0.82rem;">
+                    <td class="cfp-col-hide" style="font-size:0.82rem;">
                       <?php echo htmlspecialchars($u['PositionName'] ?? '—'); ?>
                     </td>
-                    <td class="text-center">
+                    <td class="cfp-col-hide text-center">
                       <?php echo getRoleBadge($u['RoleID'], $u['RoleNameEN'] ?? $u['RoleName']); ?>
                     </td>
                     <td class="text-center">
@@ -525,26 +527,32 @@ function getRoleBadge($roleID, $roleName) {
                         <span style="font-size:0.78rem;color:#9E9E9E;">ปิด</span>
                       <?php } ?>
                     </td>
-                    <td class="text-center" style="white-space:nowrap;">
+                    <td class="cfp-col-hide text-center" style="white-space:nowrap;">
+                      <div class="cfp-action-group">
                       <?php if ($canEdit) { ?>
-                      <button class="btn btn-outline-primary btn-action me-1"
+                      <button class="btn btn-outline-primary btn-action me-1 cfp-act-primary"
                               title="แก้ไข / กำหนด Role"
                               onclick="openModalUser(<?php echo $u['UserID']; ?>)">
-                        <i class="bi bi-pencil-square"></i>
+                        <i class="bi bi-pencil-square"></i><span class="cfp-act-label">แก้ไข</span>
                       </button>
-                      <button class="btn btn-outline-secondary btn-action me-1"
+                      <?php } ?>
+                      <div class="cfp-act-secondary">
+                      <?php if ($canEdit) { ?>
+                      <button class="btn btn-outline-secondary btn-action me-1 cfp-act-toggle"
                               title="คัดลอกผู้ใช้งาน"
                               onclick="copyUser(<?php echo $u['UserID']; ?>)">
-                        <i class="bi bi-copy"></i>
+                        <i class="bi bi-copy"></i><span class="cfp-act-label">คัดลอก</span>
                       </button>
                       <?php } ?>
                       <?php if ($canToggle) { ?>
-                      <button class="btn btn-action <?php echo $isActive ? 'btn-outline-danger' : 'btn-outline-success'; ?>"
+                      <button class="btn btn-action <?php echo $isActive ? 'btn-outline-danger' : 'btn-outline-success'; ?> cfp-act-del"
                               title="<?php echo $isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?>"
                               onclick="confirmToggle(<?php echo $u['UserID']; ?>, <?php echo $isActive ? 1 : 0; ?>, '<?php echo htmlspecialchars(addslashes($u['FullName'])); ?>')">
-                        <i class="bi bi-<?php echo $isActive ? 'person-slash' : 'person-check'; ?>"></i>
+                        <i class="bi bi-<?php echo $isActive ? 'person-slash' : 'person-check'; ?>"></i><span class="cfp-act-label"><?php echo $isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'; ?></span>
                       </button>
                       <?php } ?>
+                      </div>
+                      </div>
                     </td>
                     <!-- hidden filter data -->
                     <td class="d-none"><?php echo (int)$u['CompanyID']; ?></td>
@@ -1233,6 +1241,7 @@ if ($resDisCat) {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="../assets/js/cfp-table-mobile.js"></script>
 
 <script>
 /* ===== DataTable ===== */
@@ -1249,15 +1258,17 @@ $(document).ready(function() {
 
     table = $('#tblUsers').DataTable({
         language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/th.json' },
-        order: [[1, 'asc']],
+        order: [[2, 'asc']],
         pageLength: 25,
         columnDefs: [
-            { orderable: false, targets: [6] },
-            { visible: false, targets: [7,8,9,10] }
+            { orderable: false, searchable: false, targets: [0] },
+            { orderable: false, targets: [7] },
+            { visible: false, targets: [8,9,10,11] }
         ],
         dom: '<"row align-items-center mb-2"<"col-md-6"l><"col-md-6 text-end"f>>rtip',
         stateSave: true,       /* จำ pagination/คำค้นหา/ลำดับ ให้อัตโนมัติ (DataTables built-in) */
-        stateDuration: 3600    /* จำไว้ 1 ชั่วโมง */
+        stateDuration: 3600,   /* จำไว้ 1 ชั่วโมง */
+        drawCallback: function () { cfpInitMobileExpand('tblUsers'); }
     });
 
     /* Custom Filter */
@@ -1315,6 +1326,8 @@ $(document).ready(function() {
         pageLength: 25,
         columnDefs: [{ orderable: false, targets: [3,4,5,6] }]
     });
+
+    cfpBindMobileExpand('tblUsers');
 });
 
 function clearFilters() {
