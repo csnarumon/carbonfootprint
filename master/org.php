@@ -9,7 +9,7 @@ requireRole(array(4));
 
 $conn = getConnection();
 
-$validTabs = array('company','division','department','section','position');
+$validTabs = array('company','site','division','department','section','position');
 $activeTab = in_array($_GET['tab'] ?? '', $validTabs) ? $_GET['tab'] : 'company';
 
 $res = sqlsrv_query($conn,"SELECT CompanyID,CompanyCode,CompanyName,IsActive FROM CFP_Company ORDER BY CompanyName");
@@ -223,6 +223,8 @@ function nameTd($name, $code) {
     include '../includes/topbar.php';
     ?>
     <div class="cfp-content">
+
+      <div id="orgTabWrap" style="visibility:hidden;">
 
       <!-- Tab Nav -->
       <div class="cfp-card mb-3" style="padding:0.75rem 1rem;">
@@ -473,6 +475,8 @@ function nameTd($name, $code) {
         </div>
       </div>
       <?php } ?>
+
+      </div><!-- end orgTabWrap -->
 
     </div>
   </div>
@@ -748,26 +752,39 @@ var scData = <?php echo json_encode($scJS); ?>;
 var poData = <?php echo json_encode($poJS); ?>;
 var tabKeys = ['company','site','division','department','section','position'];
 
+/* ===== จำ Tab ที่เลือกด้วย URL hash (#tab-xxx) =====
+   ใช้ hash แทน sessionStorage เพราะ browser เก็บ URL รวม hash ไว้ให้เองตอน F5 */
+function getTabFromHash() {
+    var h = (window.location.hash || '').replace('#tab-', '');
+    return tabKeys.indexOf(h) !== -1 ? h : 'company';
+}
+/* ใช้ hash แทน sessionStorage เพราะ browser เก็บ URL รวม hash ไว้ให้เองตอน F5
+   เรียก _applyTab ทันที (เร็ว ไม่กระทบ layout) แต่ยังไม่ reveal wrap —
+   รอให้ DataTable + initMobileExpand ทำงานเสร็จก่อน กัน layout เต้นตอนแสดงผล */
+try { _applyTab(getTabFromHash(), true); } catch (e) { console.error('Tab-restore error:', e); }
+
 $(document).ready(function() {
-    var savedTab = sessionStorage.getItem('cfp_org_tab');
-    var urlTab   = '<?php echo $activeTab; ?>';
-    var initTab  = (savedTab && tabKeys.indexOf(savedTab) !== -1) ? savedTab : urlTab;
-    _applyTab(initTab, true);
-    sessionStorage.setItem('cfp_org_tab', initTab);
-
-    $('[id^="tbl-"]').each(function() {
-        $(this).DataTable({
-            language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/th.json' },
-            order: [[0,'asc']], pageLength: 25,
-            dom: '<"cfp-dt-top row g-1 align-items-center mb-2"<"col-6 col-md-6 cfp-dt-length"l><"col-6 col-md-6 cfp-dt-filter"f>>rtip'
+    try {
+        $('[id^="tbl-"]').each(function() {
+            $(this).DataTable({
+                language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/th.json' },
+                order: [[0,'asc']], pageLength: 25,
+                dom: '<"cfp-dt-top row g-1 align-items-center mb-2"<"col-6 col-md-6 cfp-dt-length"l><"col-6 col-md-6 cfp-dt-filter"f>>rtip'
+            });
         });
-    });
 
-    initMobileExpand();
-    $(window).on('resize', function() { initMobileExpand(); });
+        initMobileExpand();
+        $(window).on('resize', function() { initMobileExpand(); });
 
-    var inner = document.getElementById('tabScrollInner');
-    if (inner) { inner.addEventListener('scroll', function() { syncDotFromScroll(inner); }); }
+        var inner = document.getElementById('tabScrollInner');
+        if (inner) { inner.addEventListener('scroll', function() { syncDotFromScroll(inner); }); }
+    } catch (e) {
+        console.error('Init error:', e);
+    } finally {
+        /* ทุกอย่างพร้อมแล้ว (หรือ error ก็ตาม) — ค่อยแสดงผล กัน layout เต้น/ค้างซ่อน */
+        var wrap = document.getElementById('orgTabWrap');
+        if (wrap) { wrap.style.visibility = 'visible'; }
+    }
 });
 
 function _applyTab(key, skipScroll) {
@@ -787,14 +804,14 @@ function _applyTab(key, skipScroll) {
 
 function switchTab(key, btn) {
     _applyTab(key, false);
-    sessionStorage.setItem('cfp_org_tab', key);
+    history.replaceState(null, '', '#tab-' + key);
     if (window.innerWidth < 768) { initMobileExpand(); }
 }
 function switchTabByIndex(idx) {
     if (idx < 0 || idx >= tabKeys.length) { return; }
     var key = tabKeys[idx];
     _applyTab(key, false);
-    sessionStorage.setItem('cfp_org_tab', key);
+    history.replaceState(null, '', '#tab-' + key);
     if (window.innerWidth < 768) { initMobileExpand(); }
 }
 function updateDots(activeKey) {

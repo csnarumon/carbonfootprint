@@ -80,7 +80,14 @@ $sqlSite .= " ORDER BY CASE WHEN SiteName LIKE N'%สำนักงานให
 $resSite = sqlsrv_query($conn, $sqlSite, $paramSite);
 $sites   = array(); while ($r = sqlsrv_fetch_array($resSite, SQLSRV_FETCH_ASSOC)) { $sites[] = $r; }
 if ($allowedSites !== null && $filterSite && !in_array($filterSite, $allowedSites)) { $filterSite = 0; }
-if (!$filterSite && !empty($sites)) { $filterSite = (int)$sites[0]['SiteID']; }
+if (!$filterSite && !empty($sites)) {
+    /* Admin ที่กำลัง Elevate อยู่ — default filter ไปที่ Site ทดสอบ (TEST-01) ถ้ามี กันพลาดไปกรอกที่ Site จริงโดยไม่ตั้งใจ */
+    $testSite = null;
+    if (isElevating()) {
+        foreach ($sites as $s) { if (($s['SiteCode'] ?? '') === 'TEST-01') { $testSite = $s; break; } }
+    }
+    $filterSite = (int)(($testSite ?? $sites[0])['SiteID']);
+}
 
 /* ดึงฝ่าย/หน่วยงานทั้งหมด (HQ+Factory) มาพร้อมกัน ไม่กรองตาม Site — เผื่อกรณีคนอื่นคีย์แทน
    แยกกลุ่มด้วย optgroup ตอน render แทนการทำ 2 dropdown แยก (ลด JS logic ที่ต้องเคลียร์ค่ากันเอง) */
@@ -131,23 +138,22 @@ $sqlItem .= " ORDER BY i.CategoryNo, i.SortOrder, i.ItemName";
 $resItem = sqlsrv_query($conn, $sqlItem, $paramItems);
 $items   = array(); if ($resItem) { while ($r = sqlsrv_fetch_array($resItem, SQLSRV_FETCH_ASSOC)) { $items[] = $r; } }
 
-/* ===== ดึง EF ล่าสุดของแต่ละ Item ===== */
+/* ===== ดึง EF ปัจจุบันของแต่ละ Item ผ่าน CFP_ActivityItem.EFID (many-to-one) ===== */
 $efMap = array(); /* ItemID → EFValue, Unit, GasType */
 if (!empty($items)) {
     $itemIDs = array_column($items, 'ItemID');
     $ph      = implode(',', array_fill(0, count($itemIDs), '?'));
     $resEF   = sqlsrv_query($conn,
-        "SELECT e.RefID, e.EFValue, e.Unit, e.GasType, e.YearApply, e.SourceID,
+        "SELECT ai.ItemID, e.EFValue, e.Unit, e.GasType, e.YearApply, e.SourceID,
                 s.SourceCode
-         FROM CFP_EFValue e
+         FROM CFP_ActivityItem ai
+         JOIN CFP_EFValue e ON e.EFID = ai.EFID
          LEFT JOIN CFP_EFSource s ON s.SourceID = e.SourceID
-         WHERE e.RefID IN ($ph) AND e.RefTable='CFP_ActivityItem' AND e.IsActive=1
-         ORDER BY e.YearApply DESC",
+         WHERE ai.ItemID IN ($ph) AND e.IsActive=1",
         $itemIDs);
     if ($resEF) {
         while ($r = sqlsrv_fetch_array($resEF, SQLSRV_FETCH_ASSOC)) {
-            $id = (int)$r['RefID'];
-            if (!isset($efMap[$id])) { $efMap[$id] = $r; } /* เก็บแค่ปีล่าสุด */
+            $efMap[(int)$r['ItemID']] = $r;
         }
     }
 }
@@ -260,7 +266,7 @@ $hdrStatus = -1; /* -1 = ยังไม่มี Header */
             if (!empty($hdrRow['ResponsibleDeptID'])) { $myDeptID = (int)$hdrRow['ResponsibleDeptID']; }
             $params = array_merge(array($hdrID), $itemIDs);
             $resData = @sqlsrv_query($conn,
-                "SELECT ActivityID AS DataID, ItemID, Quantity, Remark, EvidenceFile, AssetID, AssetType, Cost
+                "SELECT ActivityID AS DataID, ItemID, Quantity, Remark, EvidenceFile, EvidenceFileName, AssetID, AssetType, Cost
                  FROM CFP_ActivityData
                  WHERE HeaderID=? AND ItemID IN ($ph) AND IsActive=1",
                 $params);
@@ -644,7 +650,7 @@ body { font-family:'Prompt',sans-serif; }
         <tr>
           <th style="width:30px;">#</th>
           <th style="min-width:260px;">รายการกิจกรรม</th>
-          <th style="width:220px;">ทรัพย์สิน</th>
+          <th style="width:320px;">ทรัพย์สิน</th>
           <th style="width:130px;">ปริมาณ</th>
           <th style="width:60px;">หน่วย</th>
           <th style="width:140px;">ค่า EF</th>
@@ -749,7 +755,9 @@ body { font-family:'Prompt',sans-serif; }
             </td>
             <td>
               <?php if ($d && !empty($d['EvidenceFile'])) { ?>
-              <a class="attach-link attach-done" href="#" title="<?php echo htmlspecialchars($d['EvidenceFile']); ?>"><i class="bi bi-paperclip"></i>มีไฟล์</a>
+              <a class="attach-link attach-done" href="#" title="<?php echo htmlspecialchars($d['EvidenceFile']); ?>" onclick="openAttach('<?php echo $rowKey; ?>');return false;"><i class="bi bi-paperclip"></i><?php echo htmlspecialchars($d['EvidenceFileName'] ?? 'มีไฟล์'); ?>
+                <span onclick="event.stopPropagation();deleteEvidence('<?php echo $rowKey; ?>',<?php echo (int)$d['DataID']; ?>);" style="color:#E05050;margin-left:4px;cursor:pointer;" title="ลบไฟล์"><i class="bi bi-x-circle"></i></span>
+              </a>
               <?php } elseif ($canEdit && !$itemLocked) { ?>
               <a class="attach-link" href="#" onclick="openAttach('<?php echo $rowKey; ?>');return false;"><i class="bi bi-paperclip"></i>แนบ</a>
               <?php } else { ?><span style="font-size:0.72rem;color:var(--cfp-text-muted);">—</span><?php } ?>
@@ -828,10 +836,11 @@ body { font-family:'Prompt',sans-serif; }
                 </td>
                 <td style="font-size:0.78rem;color:var(--cfp-text-muted);"><?php echo $n===0 ? htmlspecialchars($item['UnitName'] ?? '') : ''; ?></td>
                 <td>
-                  <?php if ($n === 0) { ?>
-                    <?php if ($catNo === 3) { ?>
-                    <span style="font-size:0.75rem;color:var(--cfp-text-muted);">GWP × ปริมาณ kg</span>
-                    <?php } elseif ($ef) { ?>
+                  <?php if ($catNo === 3) { ?>
+                    <span class="ef-badge" id="gwpdisp_<?php echo $rowKey; ?>" style="<?php echo $rowGWP > 0 ? '' : 'display:none;'; ?>">GWP <?php echo number_format($rowGWP, 2); ?></span>
+                    <span id="gwpempty_<?php echo $rowKey; ?>" style="font-size:0.75rem;color:var(--cfp-text-muted);<?php echo $rowGWP > 0 ? 'display:none;' : ''; ?>">เลือกทรัพย์สินก่อน</span>
+                  <?php } elseif ($n === 0) { ?>
+                    <?php if ($ef) { ?>
                     <span class="ef-badge"><?php echo number_format((float)$ef['EFValue'], 4); ?> kgCO₂e</span>
                     <div style="font-size:0.68rem;color:var(--cfp-text-muted);margin-top:2px;"><?php echo htmlspecialchars($ef['SourceCode'] ?? ''); ?> <?php echo $ef['YearApply'] ?? ''; ?></div>
                     <?php } else { ?><span style="font-size:0.75rem;color:var(--cfp-text-muted);">ไม่มี EF</span><?php } ?>
@@ -854,7 +863,9 @@ body { font-family:'Prompt',sans-serif; }
                 </td>
                 <td>
                   <?php if ($d && !empty($d['EvidenceFile'])) { ?>
-                  <a class="attach-link attach-done" href="#" title="<?php echo htmlspecialchars($d['EvidenceFile']); ?>"><i class="bi bi-paperclip"></i>มีไฟล์</a>
+                  <a class="attach-link attach-done" href="#" title="<?php echo htmlspecialchars($d['EvidenceFile']); ?>" onclick="openAttach('<?php echo $rowKey; ?>');return false;"><i class="bi bi-paperclip"></i><?php echo htmlspecialchars($d['EvidenceFileName'] ?? 'มีไฟล์'); ?>
+                <span onclick="event.stopPropagation();deleteEvidence('<?php echo $rowKey; ?>',<?php echo (int)$d['DataID']; ?>);" style="color:#E05050;margin-left:4px;cursor:pointer;" title="ลบไฟล์"><i class="bi bi-x-circle"></i></span>
+              </a>
                   <?php } elseif ($canEdit && !$itemLocked) { ?>
                   <a class="attach-link" href="#" onclick="openAttach('<?php echo $rowKey; ?>');return false;"><i class="bi bi-paperclip"></i>แนบ</a>
                   <?php } else { ?><span style="font-size:0.72rem;color:var(--cfp-text-muted);">—</span><?php } ?>
@@ -1094,7 +1105,14 @@ function switchCat(catNo) {
     var tab = document.getElementById('catTab' + catNo);
     if (el)  { el.style.display = ''; }
     if (tab) { tab.classList.add('active'); }
+    history.replaceState(null, '', '#cat' + catNo);
 }
+
+/* ── จำ Category tab ด้วย URL hash (#catN) กันเด้งไป tab แรกตอน F5 ── */
+(function() {
+    var h = (window.location.hash || '').replace('#cat', '');
+    if (h && document.getElementById('cat' + h)) { switchCat(h); }
+})();
 
 /* ── อนุญาตเฉพาะตัวเลข+จุดทศนิยม (ไม่ใช้ type=number กันปุ่ม scale ขึ้น-ลง) ── */
 function cfpDecOnly(el) {
@@ -1129,6 +1147,20 @@ function calcFugitiveCO2(rowKey) {
     var gwp = (assetEl && assetEl.selectedIndex > 0)
               ? parseFloat(assetEl.options[assetEl.selectedIndex].dataset.gwp || 0)
               : 0;
+
+    var gwpDisp  = document.getElementById('gwpdisp_' + rowKey);
+    var gwpEmpty = document.getElementById('gwpempty_' + rowKey);
+    if (gwpDisp && gwpEmpty) {
+        if (gwp > 0) {
+            gwpDisp.textContent = 'GWP ' + gwp.toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2});
+            gwpDisp.style.display = '';
+            gwpEmpty.style.display = 'none';
+        } else {
+            gwpDisp.style.display = 'none';
+            gwpEmpty.style.display = '';
+        }
+    }
+
     if (isNaN(qty) || qty < 0 || gwp <= 0) {
         co2el.innerHTML = '—'; co2el.className = 'co2-empty'; return;
     }
@@ -1383,66 +1415,64 @@ function openAttach(rowKey) {
     var tr = document.querySelector('tr[data-row="' + rowKey + '"]') || document.querySelector('.m-card[data-row="' + rowKey + '"]');
     var dataID = tr ? (parseInt(tr.dataset.dataid) || 0) : 0;
 
-    if (dataID <= 0) {
-        var fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = '.jpg,.jpeg,.png,.pdf';
-        fileInput.style.display = 'none';
-        document.body.appendChild(fileInput);
-        fileInput.addEventListener('change', function() {
-            var f = fileInput.files[0];
-            document.body.removeChild(fileInput);
-            if (!f) { return; }
+    /* กด "แนบ"/"มีไฟล์" แล้วเลือกไฟล์ได้ทันที ไม่ต้องผ่าน dialog กลาง — เหมือนพฤติกรรมเดิม */
+    var fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.jpg,.jpeg,.png,.pdf';
+    fileInput.style.display = 'none';
+    document.body.appendChild(fileInput);
+    fileInput.addEventListener('change', function() {
+        var f = fileInput.files[0];
+        document.body.removeChild(fileInput);
+        if (!f) { return; }
+
+        if (dataID <= 0) {
+            /* แถวยังไม่เคยบันทึก — แนบรอไว้ก่อน อัปโหลดจริงตอนกด บันทึกร่าง/ส่งอนุมัติ */
             window.pendingEvidence[rowKey] = f;
             renderPendingEvidenceLink(tr, rowKey, f.name);
-        });
-        fileInput.click();
-        return;
-    }
+            return;
+        }
 
-    var hasFile = tr.querySelector('.attach-done') !== null;
+        var fd = new FormData();
+        fd.append('action', 'upload');
+        fd.append('activity_id', dataID);
+        fd.append('scope', 'scope1');
+        fd.append('csrf_token', CSRF);
+        fd.append('file', f);
+        uploadEvidence(fd, tr, rowKey, dataID, f.name);
+    });
+    fileInput.click();
+}
+
+function deleteEvidence(rowKey, dataID) {
     Swal.fire({
-        title: hasFile ? 'จัดการไฟล์แนบ' : 'แนบไฟล์หลักฐาน',
-        html:
-            '<input type="file" id="evdFileInput" class="form-control" accept=".jpg,.jpeg,.png,.pdf" style="margin-top:8px;">' +
-            '<div style="font-size:0.72rem;color:#888;margin-top:4px;">รองรับ .jpg .png .pdf ไม่เกิน 10 MB (1 ไฟล์ต่อแถว ไฟล์ใหม่จะแทนที่ไฟล์เดิม)</div>',
+        title: 'ลบไฟล์แนบ?',
+        text: 'ไฟล์แนบของแถวนี้จะถูกลบทันที',
+        icon: 'warning',
         showCancelButton: true,
-        showDenyButton: hasFile,
-        confirmButtonText: 'อัปโหลด',
-        denyButtonText: 'ลบไฟล์เดิม',
+        confirmButtonText: 'ลบไฟล์',
         cancelButtonText: 'ยกเลิก',
-        customClass: { popup: 'font-prompt' },
-        preConfirm: function() {
-            var f = document.getElementById('evdFileInput').files[0];
-            if (!f) { Swal.showValidationMessage('กรุณาเลือกไฟล์'); return false; }
-            return f;
-        }
+        confirmButtonColor: '#E05050',
+        reverseButtons: true,
+        customClass: { popup: 'font-prompt' }
     }).then(function(result) {
-        if (result.isConfirmed) {
-            var fd = new FormData();
-            fd.append('action', 'upload');
-            fd.append('activity_id', dataID);
-            fd.append('scope', 'scope1');
-            fd.append('csrf_token', CSRF);
-            fd.append('file', result.value);
-            uploadEvidence(fd);
-        } else if (result.isDenied) {
-            var fd2 = new FormData();
-            fd2.append('action', 'delete');
-            fd2.append('activity_id', dataID);
-            fd2.append('scope', 'scope1');
-            fd2.append('csrf_token', CSRF);
-            uploadEvidence(fd2);
-        }
+        if (!result.isConfirmed) { return; }
+        var tr = document.querySelector('tr[data-row="' + rowKey + '"]') || document.querySelector('.m-card[data-row="' + rowKey + '"]');
+        var fd = new FormData();
+        fd.append('action', 'delete');
+        fd.append('activity_id', dataID);
+        fd.append('scope', 'scope1');
+        fd.append('csrf_token', CSRF);
+        uploadEvidence(fd, tr, rowKey, dataID, null);
     });
 }
-function uploadEvidence(fd) {
+/* อัปโหลด/ลบไฟล์แล้ว อัปเดตชื่อไฟล์ในแถวทันทีโดยไม่ reload หน้า — เห็นชื่อไฟล์จริงที่เพิ่งเลือกทันที */
+function uploadEvidence(fd, tr, rowKey, dataID, displayName) {
     fetch('evidence_save.php', { method:'POST', body: fd })
         .then(function(r){ return r.json(); })
         .then(function(res){
             if (res.success) {
-                Swal.fire({ icon:'success', title: res.msg, timer:1500, showConfirmButton:false, customClass:{popup:'font-prompt'} })
-                    .then(function(){ location.reload(); });
+                if (tr) { updateAttachLink(tr, rowKey, dataID, displayName); }
             } else {
                 Swal.fire({ icon:'error', title:'ไม่สำเร็จ', text: res.msg, customClass:{popup:'font-prompt'} });
             }
@@ -1450,6 +1480,20 @@ function uploadEvidence(fd) {
         .catch(function(){
             Swal.fire({ icon:'error', title:'เชื่อมต่อ server ไม่ได้', customClass:{popup:'font-prompt'} });
         });
+}
+function updateAttachLink(tr, rowKey, dataID, displayName) {
+    var link = tr.querySelector('.attach-link');
+    if (!link) { return; }
+    if (displayName) {
+        link.classList.add('attach-done');
+        link.title = displayName;
+        link.innerHTML = '<i class="bi bi-paperclip"></i>' + displayName +
+            ' <span onclick="event.stopPropagation();deleteEvidence(\'' + rowKey + '\',' + dataID + ');" style="color:#E05050;margin-left:4px;cursor:pointer;" title="ลบไฟล์"><i class="bi bi-x-circle"></i></span>';
+    } else {
+        link.classList.remove('attach-done');
+        link.title = '';
+        link.innerHTML = '<i class="bi bi-paperclip"></i>แนบ';
+    }
 }
 
 /* อัปโหลดไฟล์ที่แนบรอไว้ (pendingEvidence) หลังบันทึกสำเร็จ โดยจับคู่ rowKey กับ ActivityID ใหม่จาก savedRows */

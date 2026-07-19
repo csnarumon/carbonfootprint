@@ -128,7 +128,6 @@ if (!empty($deletedIds) && !empty($headerID)) {
 
 /* ── Upsert ActivityData ── */
 $successCount=0;$errorCount=0;$errors=array();$savedRows=array();
-$year=(int)substr($yearMonth,0,4);
 
 foreach($rows as $row){
     $itemID    =(int)($row['ItemID']??0);
@@ -152,13 +151,15 @@ foreach($rows as $row){
         }
     }
 
-    /* คำนวณ CO2e — ใช้ EF ของปีที่ตรงกับข้อมูล (YearApply <= ปีที่บันทึก) */
-    $co2e=null;
+    /* คำนวณ CO2e — หา EF ผ่าน CFP_ActivityItem.EFID (many-to-one: หลาย Item ใช้ EF เดียวกันได้)
+       ai.EFID ชี้ตรงไปเวอร์ชันปัจจุบันเสมอ (cascade update ตอน revise EF แล้ว) ไม่ต้องค้นตามปีซ้ำ */
+    $co2e=null; $efID=null;
     $resEF=sqlsrv_query($conn,
-        "SELECT TOP 1 EFValue FROM CFP_EFValue
-         WHERE RefTable='CFP_ActivityItem' AND RefID=? AND IsActive=1 AND YearApply<=?
-         ORDER BY YearApply DESC",array($itemID,$year));
-    if($resEF){$rEF=sqlsrv_fetch_array($resEF,SQLSRV_FETCH_ASSOC);if($rEF){$co2e=$qty*(float)$rEF['EFValue'];}}
+        "SELECT ev.EFID, ev.EFValue
+         FROM CFP_ActivityItem ai
+         JOIN CFP_EFValue ev ON ev.EFID = ai.EFID
+         WHERE ai.ItemID=? AND ev.IsActive=1",array($itemID));
+    if($resEF){$rEF=sqlsrv_fetch_array($resEF,SQLSRV_FETCH_ASSOC);if($rEF){$co2e=$qty*(float)$rEF['EFValue'];$efID=(int)$rEF['EFID'];}}
 
     /* ดึง ItemName, CategoryNo สำหรับ INSERT */
     $resItm=sqlsrv_query($conn,
@@ -174,13 +175,6 @@ foreach($rows as $row){
         $errors[] = '"' . $actName . '" ต้องระบุสารทำความเย็น (CAT3)';
         $errorCount++; continue;
     }
-
-    /* ดึง EFID */
-    $efID=null;
-    $resEFID=sqlsrv_query($conn,
-        "SELECT TOP 1 EFID FROM CFP_EFValue WHERE RefTable='CFP_ActivityItem' AND RefID=? AND IsActive=1 AND YearApply<=? ORDER BY YearApply DESC",
-        array($itemID,$year));
-    if($resEFID){$rEFID=sqlsrv_fetch_array($resEFID,SQLSRV_FETCH_ASSOC);if($rEFID){$efID=(int)$rEFID['EFID'];}}
 
     if($activityID>0){
         /* UPDATE — รวม AssetID/AssetType */

@@ -4,6 +4,12 @@
    อัพเดต: Pastel Soft Colors (ปรับสี entry และ report)
    ============================================== */
 
+/* ===== VIEW TRANSITIONS (ครอสเฟดระหว่างหน้า กัน "เต้น" ตอนสลับหน้าใหม่)
+   รองรับเฉพาะ Chrome/Edge — เบราว์เซอร์อื่นจะไม่มีเอฟเฟกต์ ไม่กระทบการทำงาน ===== */
+@view-transition {
+  navigation: auto;
+}
+
 /* ===== CSS VARIABLES ===== */
 :root {
   --cfp-primary:        #2AABB8;
@@ -1419,6 +1425,58 @@ table td:has(> button.btn) {
   transform: rotate(25deg);
   transition: left 1s ease;
 }
+
+.btn-cfp-add.btn-cfp-add-danger {
+  background: linear-gradient(135deg, var(--cfp-danger), #C43E3E);
+  box-shadow: 0 3px 8px rgba(224,80,80,0.25);
+}
+
+.btn-cfp-add.btn-cfp-add-success {
+  background: linear-gradient(135deg, #4CAF50, #3D8B40);
+  box-shadow: 0 3px 8px rgba(76,175,80,0.25);
+}
+
+.btn-cfp-add.btn-cfp-add-navy {
+  background: linear-gradient(135deg, var(--cfp-navy, #1B3A4A), #0F252F);
+  box-shadow: 0 3px 8px rgba(27,58,74,0.3);
+}
+
+.btn-cfp-add.btn-cfp-add-outline {
+  background: #fff;
+  color: var(--cfp-text-mid, #4B5563);
+  border: 1px solid var(--cfp-border, #E1E8EA);
+  box-shadow: none;
+}
+.btn-cfp-add.btn-cfp-add-outline:hover {
+  background: var(--cfp-hover, #F0FAFB);
+  color: var(--cfp-primary);
+}
+
+/* ===== Tonal buttons — พื้นสีอ่อน ตัวอักษร/ขอบสีเข้ม แต่มี hover effect (shine sweep + lift) เหมือน .btn-cfp-add ===== */
+.btn-cfp-tonal {
+  position: relative;
+  overflow: hidden;
+  font-family: 'Prompt', sans-serif; font-size: 0.82rem; font-weight: 500;
+  padding: 7px 16px; border-radius: 8px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  transition: all .3s ease;
+}
+.btn-cfp-tonal::before {
+  content: '';
+  position: absolute; top: -50%; left: -120%; width: 40%; height: 200%;
+  background: linear-gradient(120deg, transparent, rgba(255,255,255,.35), rgba(255,255,255,.6), rgba(255,255,255,.35), transparent);
+  transform: rotate(25deg);
+  transition: left 1s ease;
+}
+.btn-cfp-tonal:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+}
+.btn-cfp-tonal:hover::before { left: 150%; }
+.btn-cfp-tonal-success { background: #E8F5E9; color: #2E7D32; border: 1px solid #A5D6A7; }
+.btn-cfp-tonal-danger  { background: #FDECEC; color: #B91C1C; border: 1px solid #F5B5B5; }
+.btn-cfp-tonal-info    { background: #E4F7F9; color: #1A8898; border: 1px solid #A9E1E6; }
+.btn-cfp-tonal-navy    { background: #EAEEF0; color: #1B3A4A; border: 1px solid #C7D0D4; }
 
 .btn-cfp-add:hover {
   transform: translateY(-1px);

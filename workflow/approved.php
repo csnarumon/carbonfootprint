@@ -63,11 +63,11 @@ if ($filterStatus !== '') {
 }
 $sqlMain .= " GROUP BY h.HeaderID, h.Scope, h.YearMonth, h.SiteID, h.Status,
               h.SubmittedBy, h.SubmittedDate, h.ApprovedBy, h.ApprovedDate,
-              h.ReviewedBy, h.ReviewedDate, h.Remark,
+              h.ReviewedBy, h.ReviewedDate, h.Remark, h.CreatedDate,
               s.SiteName, us.FullName, ua.FullName, ur.FullName
               ORDER BY COALESCE(h.ApprovedDate, h.SubmittedDate, h.CreatedDate) DESC";
 
-$resMain = @sqlsrv_query($conn, $sqlMain, $paramsMain);
+$resMain = sqlsrv_query($conn, $sqlMain, $paramsMain);
 $rows = array(); if ($resMain) { while ($r = sqlsrv_fetch_array($resMain, SQLSRV_FETCH_ASSOC)) { $rows[] = $r; } }
 
 /* ===== KPI ===== */
@@ -80,7 +80,7 @@ $sqlPend = "SELECT COUNT(*) AS C FROM CFP_MonthlyHeader
             WHERE Status=1
             AND YEAR(COALESCE(SubmittedDate,CreatedDate))=?
             AND MONTH(COALESCE(SubmittedDate,CreatedDate))=?";
-$resPend = @sqlsrv_query($conn, $sqlPend, array($filterYear, $filterMonth));
+$resPend = sqlsrv_query($conn, $sqlPend, array($filterYear, $filterMonth));
 $cntPending = 0;
 if ($resPend) { $rP = sqlsrv_fetch_array($resPend, SQLSRV_FETCH_ASSOC); $cntPending = $rP ? (int)$rP['C'] : 0; }
 
@@ -101,7 +101,7 @@ $sqlLog = "
     WHERE l.ActionCode IN ('APPROVE','REJECT','UNLOCK')
     ORDER BY l.CreatedDate DESC
 ";
-$resLog = @sqlsrv_query($conn, $sqlLog);
+$resLog = sqlsrv_query($conn, $sqlLog);
 $logRows = array(); if ($resLog) { while ($r = sqlsrv_fetch_array($resLog, SQLSRV_FETCH_ASSOC)) { $logRows[] = $r; } }
 
 function scopeBar($scope) {

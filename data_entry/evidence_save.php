@@ -66,14 +66,15 @@ if ($action === 'upload') {
     if (!move_uploaded_file($_FILES['file']['tmp_name'], $uploadDir . $newName)) {
         jsonOut(false, 'ย้ายไฟล์ไม่สำเร็จ');
     }
+    $origName = $_FILES['file']['name'];
 
     $r = sqlsrv_query($conn,
-        "UPDATE CFP_ActivityData SET EvidenceFile=?, UpdatedBy=?, UpdatedDate=GETDATE() WHERE ActivityID=?",
-        array($newName, $userID, $activityID));
+        "UPDATE CFP_ActivityData SET EvidenceFile=?, EvidenceFileName=?, UpdatedBy=?, UpdatedDate=GETDATE() WHERE ActivityID=?",
+        array($newName, $origName, $userID, $activityID));
     if (!$r) { jsonOut(false, 'บันทึกไฟล์ไม่สำเร็จ'); }
 
-    logAction($conn, 'DATA_UPDATE', 'CFP_ActivityData', $activityID, null, null, null, 'แนบไฟล์หลักฐาน: ' . $newName);
-    jsonOut(true, 'แนบไฟล์เรียบร้อยแล้ว', array('fileName' => $newName));
+    logAction($conn, 'DATA_UPDATE', 'CFP_ActivityData', $activityID, null, null, null, 'แนบไฟล์หลักฐาน: ' . $origName);
+    jsonOut(true, 'แนบไฟล์เรียบร้อยแล้ว', array('fileName' => $origName));
 }
 
 if ($action === 'delete') {
@@ -82,7 +83,7 @@ if ($action === 'delete') {
         if (file_exists($oldFile)) { @unlink($oldFile); }
     }
     $r = sqlsrv_query($conn,
-        "UPDATE CFP_ActivityData SET EvidenceFile=NULL, UpdatedBy=?, UpdatedDate=GETDATE() WHERE ActivityID=?",
+        "UPDATE CFP_ActivityData SET EvidenceFile=NULL, EvidenceFileName=NULL, UpdatedBy=?, UpdatedDate=GETDATE() WHERE ActivityID=?",
         array($userID, $activityID));
     if (!$r) { jsonOut(false, 'ลบไฟล์ไม่สำเร็จ'); }
 

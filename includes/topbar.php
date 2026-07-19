@@ -34,8 +34,8 @@ $_notifFulfilledCount = $_notifData['fulfilledCount'];
 $_notifFulfilledItems = $_notifData['fulfilledItems'];
 $_notifScopeColor = array(1=>'#43A047', 2=>'#7C3AED', 3=>'#F59E0B');
 
-$roleNames    = array(2 => 'Reviewer', 3 => 'Approver');
-$roleIcons    = array(2 => 'bi-search', 3 => 'bi-check2-circle');
+$roleNames    = array(1 => 'Data Entry', 2 => 'Reviewer', 3 => 'Approver');
+$roleIcons    = array(1 => 'bi-pencil-square', 2 => 'bi-search', 3 => 'bi-check2-circle');
 $elevRoleName = $roleNames[$elevRole] ?? '';
 $elevIcon     = $roleIcons[$elevRole] ?? 'bi-person';
 
@@ -588,7 +588,16 @@ $rNames = array(
                 <p style="font-size:0.82rem;color:var(--cfp-text-muted);margin-bottom:14px;">
                     เลือก Role ที่ต้องการทำงานแทนชั่วคราว — ทุกการกระทำจะถูกบันทึก Audit Log
                 </p>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;">
+                    <div id="roleCard1" onclick="selectElevRole(1)"
+                         style="border:1.5px solid var(--cfp-border);border-radius:10px;
+                                padding:14px 12px;cursor:pointer;text-align:center;
+                                transition:all .18s;background:#fff;">
+                        <i id="icon1" class="bi bi-circle"
+                           style="color:var(--cfp-border);font-size:1.1rem;margin-bottom:6px;display:block;"></i>
+                        <div style="font-size:0.82rem;font-weight:600;color:var(--cfp-text);">Data Entry</div>
+                        <div style="font-size:0.7rem;color:var(--cfp-text-muted);margin-top:2px;">คีย์ข้อมูล/ทดสอบ</div>
+                    </div>
                     <div id="roleCard2" onclick="selectElevRole(2)"
                          style="border:1.5px solid var(--cfp-border);border-radius:10px;
                                 padding:14px 12px;cursor:pointer;text-align:center;
@@ -890,7 +899,7 @@ function openElevationModal() {
 }
 
 function resetRoleCards() {
-    [2, 3].forEach(function(r) {
+    [1, 2, 3].forEach(function(r) {
         var card = document.getElementById('roleCard' + r);
         var icon = document.getElementById('icon' + r);
         if (card) { card.style.borderColor = 'var(--cfp-border)'; card.style.background = '#fff'; }
@@ -906,7 +915,7 @@ function selectElevRole(role) {
     var icon = document.getElementById('icon' + role);
     if (card) { card.style.borderColor = 'var(--cfp-primary)'; card.style.background = 'var(--cfp-hover)'; }
     if (icon) { icon.className = 'bi bi-check-circle-fill'; icon.style.color = 'var(--cfp-primary)'; }
-    var rn = {2:'Reviewer',3:'Approver'};
+    var rn = {1:'Data Entry',2:'Reviewer',3:'Approver'};
     document.getElementById('actorPreview').textContent = 'Admin acting as ' + (rn[role] || '?');
     checkElevReady();
 }
@@ -915,7 +924,7 @@ function checkElevReady() {
     var role   = selectedElevRole;
     var reason = (document.getElementById('elevReason') || {}).value || '';
     var btn    = document.getElementById('btnStartElev');
-    var ready  = (role === 2 || role === 3) && reason.trim().length >= 3;
+    var ready  = (role === 1 || role === 2 || role === 3) && reason.trim().length >= 3;
     btn.disabled      = !ready;
     btn.style.opacity = ready ? '1' : '0.5';
 }

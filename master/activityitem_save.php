@@ -143,6 +143,7 @@ $nameEN      = trim($_POST['ItemNameEN']  ?? '');
 $scopeNo     = (int)($_POST['ScopeNo']    ?? 0);
 $categoryNo  = isset($_POST['CategoryNo']) && $_POST['CategoryNo'] !== '' ? (int)$_POST['CategoryNo'] : null;
 $scope1Type  = trim($_POST['Scope1Type']  ?? '');
+$mobileRoadType = trim($_POST['MobileRoadType'] ?? '');
 $unitID      = isset($_POST['UnitID'])    && $_POST['UnitID'] !== ''    ? (int)$_POST['UnitID']    : null;
 $inputMethod = (int)($_POST['InputMethod'] ?? 1);
 $sort        = (int)($_POST['SortOrder']  ?? 99);
@@ -158,17 +159,21 @@ if ($scopeNo === 3 && ($categoryNo === null || $categoryNo < 1 || $categoryNo > 
 if ($scopeNo === 1 && !in_array($scope1Type, array('Stationary', 'Mobile', 'Fugitive', 'Process'))) {
     redirectWithToast('Scope 1 ต้องระบุประเภท (Stationary/Mobile/Fugitive/Process)', 'error');
 }
+if ($scopeNo === 1 && $scope1Type === 'Mobile' && !in_array($mobileRoadType, array('OnRoad', 'OffRoad'))) {
+    redirectWithToast('ประเภท Mobile ต้องระบุ On-road หรือ Off-road ด้วย', 'error');
+}
 $scope1TypeVal = ($scopeNo === 1 && $scope1Type !== '') ? $scope1Type : null;
+$mobileRoadTypeVal = ($scope1TypeVal === 'Mobile' && $mobileRoadType !== '') ? $mobileRoadType : null;
 
 if ($action === 'create') {
     $code = generateItemCode($conn, $scopeNo, $categoryNo);
     $sql  = "INSERT INTO CFP_ActivityItem
-             (ItemCode, ItemName, ItemNameEN, ScopeNo, CategoryNo, Scope1Type, UnitID,
+             (ItemCode, ItemName, ItemNameEN, ScopeNo, CategoryNo, Scope1Type, MobileRoadType, UnitID,
               InputMethod, Description, SortOrder, IsActive, CreatedBy, CreatedDate)
-             VALUES (?,?,?,?,?,?,?,?,?,?,1,?,GETDATE())";
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,GETDATE())";
     $params = array(
         $code, $name, ($nameEN !== '' ? $nameEN : null),
-        $scopeNo, $categoryNo, $scope1TypeVal, $unitID,
+        $scopeNo, $categoryNo, $scope1TypeVal, $mobileRoadTypeVal, $unitID,
         $inputMethod, ($desc !== '' ? $desc : null), $sort,
         (int)$_SESSION['user_id']
     );
@@ -190,13 +195,13 @@ if ($action === 'create') {
     if (!$id) { redirectWithToast('ไม่พบข้อมูลที่ต้องการแก้ไข', 'error'); }
 
     $sql = "UPDATE CFP_ActivityItem
-            SET ItemName=?, ItemNameEN=?, ScopeNo=?, CategoryNo=?, Scope1Type=?, UnitID=?,
+            SET ItemName=?, ItemNameEN=?, ScopeNo=?, CategoryNo=?, Scope1Type=?, MobileRoadType=?, UnitID=?,
                 InputMethod=?, Description=?, SortOrder=?, IsActive=?,
                 UpdatedBy=?, UpdatedDate=GETDATE()
             WHERE ItemID=?";
     $r = sqlsrv_query($conn, $sql, array(
         $name, ($nameEN !== '' ? $nameEN : null),
-        $scopeNo, $categoryNo, $scope1TypeVal, $unitID,
+        $scopeNo, $categoryNo, $scope1TypeVal, $mobileRoadTypeVal, $unitID,
         $inputMethod, ($desc !== '' ? $desc : null), $sort, $isActive,
         (int)$_SESSION['user_id'], $id
     ));

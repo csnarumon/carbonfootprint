@@ -36,8 +36,8 @@ if ($action === 'start') {
     $reason   = isset($input['reason']) ? trim($input['reason']) : '';
 
     /* Validate */
-    if (!in_array($elevRole, array(2, 3))) {
-        echo json_encode(array('success' => false, 'msg' => 'Role ที่ elevate ได้มีแค่ Reviewer (2) และ Approver (3)'));
+    if (!in_array($elevRole, array(1, 2, 3))) {
+        echo json_encode(array('success' => false, 'msg' => 'Role ที่ elevate ได้มีแค่ Data Entry (1), Reviewer (2) และ Approver (3)'));
         exit;
     }
     if ($reason === '') {
@@ -83,7 +83,7 @@ if ($action === 'start') {
     $_SESSION['elevation_reason']    = $reason;
     $_SESSION['elevation_start']     = date('H:i');
 
-    $roleNames = array(2 => 'Reviewer', 3 => 'Approver');
+    $roleNames = array(1 => 'Data Entry', 2 => 'Reviewer', 3 => 'Approver');
 
     sqlsrv_close($conn);
     echo json_encode(array(
@@ -134,7 +134,7 @@ if ($action === 'end') {
    ============================================================ */
 if ($action === 'status') {
     $isElevated = !empty($_SESSION['elevated_role']);
-    $roleNames  = array(2 => 'Reviewer', 3 => 'Approver');
+    $roleNames  = array(1 => 'Data Entry', 2 => 'Reviewer', 3 => 'Approver');
     $elevRole   = (int)($_SESSION['elevated_role'] ?? 0);
 
     sqlsrv_close($conn);

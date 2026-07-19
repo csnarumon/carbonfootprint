@@ -27,10 +27,13 @@ $filterMonth = (int)substr($filterYM, 4, 2);
 $resSite = sqlsrv_query($conn, "SELECT SiteID,SiteName FROM CFP_Site WHERE IsActive=1 ORDER BY SiteName");
 $sites   = array(); while ($r = sqlsrv_fetch_array($resSite, SQLSRV_FETCH_ASSOC)) { $sites[] = $r; }
 
-/* ===== กรอง Site ตามสิทธิ์ Reviewer (Role 2 เท่านั้น) ===== */
-/* Role 3/4/5 เห็นทุก Site — Role 2 เห็นเฉพาะ Site ที่ได้รับสิทธิ์ */
+/* ===== กรอง Site ตามสิทธิ์ Reviewer/Approver (Role 2, 3) ===== */
+/* Role 4/5 เห็นทุก Site — Role 2 (Reviewer) และ Role 3 (Approver/ผจก.โรงงาน)
+   เห็น/อนุมัติได้เฉพาะ Site ที่ได้รับมอบหมายเท่านั้น
+   ถ้าเป็น Admin/SustAdmin (Role จริง 4/5) ที่ Elevate ลงมาเป็น 2/3 ชั่วคราว ให้เห็นทุก Site เหมือนปกติ
+   เพราะ UserID จริงของ Admin ไม่เคยมีแถวใน CFP_UserScopeAccess (ไม่จำเป็นต้องมีตอนใช้งานปกติ) */
 $allowedSiteIDs = null; /* null = ทุก Site */
-if ($roleID === 2) {
+if (!isSuperAdmin() && ($roleID === 2 || $roleID === 3)) {
     $resRA = sqlsrv_query($conn,
         "SELECT DISTINCT SiteID FROM CFP_UserScopeAccess
          WHERE UserID = ? AND IsActive = 1 AND SiteID IS NOT NULL",
@@ -81,24 +84,63 @@ $resPending = @sqlsrv_query($conn, $sqlPending, $paramsPending);
 $pendingRows = array();
 if ($resPending) { while ($r = sqlsrv_fetch_array($resPending, SQLSRV_FETCH_ASSOC)) { $pendingRows[] = $r; } }
 
-/* ===== ดึงข้อมูลอนุมัติแล้ว (เดือนเดียวกัน) ===== */
+/* ===== ดึงข้อมูลอนุมัติแล้ว (เดือนเดียวกัน) =====
+   หมายเหตุ: query เดิมอ้างคอลัมน์ DataID/Status/SubmittedDate/ApprovedDate/ApprovedBy บน CFP_ActivityData
+   ซึ่งไม่มีอยู่จริง (คอลัมน์เหล่านี้อยู่ที่ CFP_MonthlyHeader) ทำให้ query error ทุกครั้งแต่ถูก @ กลืน error ไว้
+   เลยไม่เคยแสดงรายการอนุมัติแล้วเลยสักครั้ง — แก้ให้ join ผ่าน Header ให้ถูกต้อง */
 $sqlApproved = "
-    SELECT a.DataID, i.ItemName, i.ScopeNo, a.SiteID, s.SiteName,
-           a.YearMonth, a.Quantity, u.UnitName, a.Status,
-           a.ApprovedDate, ap.FullName AS ApproverName
-    FROM CFP_ActivityData a
+    SELECT a.ActivityID AS DataID, i.ItemName, i.ScopeNo, h.SiteID, s.SiteName,
+           h.YearMonth, a.Quantity, u.UnitName,
+           h.ApprovedDate, ap.FullName AS ApproverName
+    FROM CFP_MonthlyHeader h
+    JOIN CFP_ActivityData a ON a.HeaderID = h.HeaderID AND a.IsActive = 1
     JOIN CFP_ActivityItem i ON i.ItemID = a.ItemID
-    LEFT JOIN CFP_Site s ON s.SiteID = a.SiteID
+    LEFT JOIN CFP_Site s ON s.SiteID = h.SiteID
     LEFT JOIN CFP_Unit u ON u.UnitID = i.UnitID
-    LEFT JOIN CFP_User ap ON ap.UserID = a.ApprovedBy
-    WHERE a.Status IN ('Approved','Rejected')
-    AND YEAR(COALESCE(a.ApprovedDate, a.SubmittedDate)) = ?
-    AND MONTH(COALESCE(a.ApprovedDate, a.SubmittedDate)) = ?
-    ORDER BY a.ApprovedDate DESC
+    LEFT JOIN CFP_User ap ON ap.UserID = h.ApprovedBy
+    WHERE h.Status = 2
+    AND YEAR(h.ApprovedDate) = ? AND MONTH(h.ApprovedDate) = ?
+    ORDER BY h.ApprovedDate DESC
 ";
-$resApproved = @sqlsrv_query($conn, $sqlApproved, array($filterYear, $filterMonth));
+$resApproved = sqlsrv_query($conn, $sqlApproved, array($filterYear, $filterMonth));
 $approvedRows = array();
-if ($resApproved) { while ($r = sqlsrv_fetch_array($resApproved, SQLSRV_FETCH_ASSOC)) { $approvedRows[] = $r; } }
+if ($resApproved) {
+    while ($r = sqlsrv_fetch_array($resApproved, SQLSRV_FETCH_ASSOC)) {
+        $r['Status'] = 'Approved';
+        $approvedRows[] = $r;
+    }
+}
+
+/* Reject ไม่เก็บสถานะถาวร (ส่งกลับ Header เป็น Draft ทันที) — ดึงประวัติ "ปฏิเสธ" จาก CFP_ActionLog แทน */
+$sqlRejected = "
+    SELECT l.TargetID AS HeaderID, l.TargetScope, l.TargetSiteID AS SiteID, s.SiteName,
+           l.ActionTime AS ApprovedDate, u.FullName AS ApproverName
+    FROM CFP_ActionLog l
+    LEFT JOIN CFP_Site s ON s.SiteID = l.TargetSiteID
+    LEFT JOIN CFP_User u ON u.UserID = l.ActorUserID
+    WHERE l.ActionCode = 'REJECT' AND l.TargetTable = 'CFP_MonthlyHeader'
+    AND YEAR(l.ActionTime) = ? AND MONTH(l.ActionTime) = ?
+    ORDER BY l.ActionTime DESC
+";
+$resRejected = sqlsrv_query($conn, $sqlRejected, array($filterYear, $filterMonth));
+if ($resRejected) {
+    while ($r = sqlsrv_fetch_array($resRejected, SQLSRV_FETCH_ASSOC)) {
+        $approvedRows[] = array(
+            'ItemName'     => 'ส่งกลับให้แก้ไข (Header #' . $r['HeaderID'] . ')',
+            'ScopeNo'      => (int)substr($r['TargetScope'] ?? '', -1),
+            'SiteName'     => $r['SiteName'],
+            'ApprovedDate' => $r['ApprovedDate'],
+            'ApproverName' => $r['ApproverName'],
+            'Status'       => 'Rejected',
+        );
+    }
+}
+/* เรียงรวม Approved+Rejected ตามเวลาล่าสุด */
+usort($approvedRows, function($a, $b) {
+    $ta = ($a['ApprovedDate'] instanceof DateTime) ? $a['ApprovedDate']->getTimestamp() : 0;
+    $tb = ($b['ApprovedDate'] instanceof DateTime) ? $b['ApprovedDate']->getTimestamp() : 0;
+    return $tb <=> $ta;
+});
 
 /* ===== Timeline (audit log ล่าสุด) ===== */
 $sqlLog = "
@@ -114,7 +156,7 @@ $sqlLog = "
     FROM CFP_ActionLog l
     LEFT JOIN CFP_User u         ON u.UserID   = l.ActorUserID
     LEFT JOIN CFP_Role r         ON r.RoleID   = l.ActorRole
-    LEFT JOIN CFP_ActivityData ad ON ad.DataID = l.TargetID
+    LEFT JOIN CFP_ActivityData ad ON ad.ActivityID = l.TargetID
                                   AND l.TargetTable = 'CFP_ActivityData'
     LEFT JOIN CFP_ActivityItem ai ON ai.ItemID = ad.ItemID
     LEFT JOIN CFP_Site s          ON s.SiteID  = ad.SiteID
@@ -122,7 +164,7 @@ $sqlLog = "
     WHERE l.ActionCode IN ('SUBMIT','APPROVE','REJECT','DATA_CREATE','DATA_UPDATE')
     ORDER BY l.CreatedDate DESC
 ";
-$resLog = @sqlsrv_query($conn, $sqlLog);
+$resLog = sqlsrv_query($conn, $sqlLog);
 $logRows = array();
 if ($resLog) { while ($r = sqlsrv_fetch_array($resLog, SQLSRV_FETCH_ASSOC)) { $logRows[] = $r; } }
 
@@ -132,14 +174,16 @@ $cntApproved = count(array_filter($approvedRows, function($r){ return $r['Status
 $cntRejected = count(array_filter($approvedRows, function($r){ return $r['Status'] === 'Rejected'; }));
 
 /* ===== สรุปยอดรวม (เดือนนี้ทั้งหมด) ===== */
-$sqlTotal = "SELECT COUNT(*) AS C FROM CFP_ActivityData WHERE Status IN ('Submitted','Approved','Rejected') AND YEAR(SubmittedDate)=? AND MONTH(SubmittedDate)=?";
-$resTotal = @sqlsrv_query($conn, $sqlTotal, array($filterYear, $filterMonth));
+/* เดิมอ้าง CFP_ActivityData.Status/SubmittedDate ที่ไม่มีอยู่จริง (คอลัมน์นี้อยู่ที่ CFP_MonthlyHeader)
+   ทำให้ query error เงียบๆ ทุกครั้ง คงค่า 0 ตลอด — แก้ให้ join ผ่าน Header ให้ถูกต้อง */
+$sqlTotal = "SELECT COUNT(*) AS C FROM CFP_MonthlyHeader WHERE Status IN (1,2,3) AND YEAR(SubmittedDate)=? AND MONTH(SubmittedDate)=?";
+$resTotal = sqlsrv_query($conn, $sqlTotal, array($filterYear, $filterMonth));
 $cntTotal = 0;
 if ($resTotal) { $rT = sqlsrv_fetch_array($resTotal, SQLSRV_FETCH_ASSOC); $cntTotal = $rT ? (int)$rT['C'] : 0; }
 
 /* ===== Site count ===== */
-$sqlSiteC = "SELECT COUNT(DISTINCT SiteID) AS C FROM CFP_ActivityData WHERE Status IN ('Submitted','Approved','Rejected') AND YEAR(SubmittedDate)=? AND MONTH(SubmittedDate)=?";
-$resSiteC = @sqlsrv_query($conn, $sqlSiteC, array($filterYear, $filterMonth));
+$sqlSiteC = "SELECT COUNT(DISTINCT SiteID) AS C FROM CFP_MonthlyHeader WHERE Status IN (1,2,3) AND YEAR(SubmittedDate)=? AND MONTH(SubmittedDate)=?";
+$resSiteC = sqlsrv_query($conn, $sqlSiteC, array($filterYear, $filterMonth));
 $cntSites = 0;
 if ($resSiteC) { $rS = sqlsrv_fetch_array($resSiteC, SQLSRV_FETCH_ASSOC); $cntSites = $rS ? (int)$rS['C'] : 0; }
 
@@ -353,7 +397,7 @@ body { font-family: 'Prompt', sans-serif; }
 <!-- KPI Cards -->
 <div class="kpi-grid">
   <div class="kpi-card">
-    <div class="kpi-num" style="color:var(--cfp-primary);"><?php echo $cntPending; ?></div>
+    <div class="kpi-num" style="color:#F59E0B;"><?php echo $cntPending; ?></div>
     <div class="kpi-lbl"><i class="bi bi-clock me-1" style="color:#F59E0B;"></i>รออนุมัติ</div>
   </div>
   <div class="kpi-card">
@@ -370,8 +414,11 @@ body { font-family: 'Prompt', sans-serif; }
   </div>
 </div>
 
-<!-- Pending Section -->
-<div class="cfp-card" style="margin-bottom:14px;">
+<!-- Pending + Timeline (ข้าง ๆ กัน) -->
+<div class="bottom-grid">
+
+  <!-- Pending Section -->
+  <div class="cfp-card" style="margin-bottom:0;">
   <div class="section-hd">
     <i class="bi bi-clock" style="color:#F59E0B;font-size:0.85rem;"></i>
     รออนุมัติ
@@ -422,25 +469,25 @@ body { font-family: 'Prompt', sans-serif; }
       </div>
       <div class="pending-actions">
         <?php if ($canApprove) { ?>
-        <button class="btn-approve" onclick="confirmApprove(<?php echo (int)$r['HeaderID']; ?>, '<?php echo htmlspecialchars(addslashes($hLabel)); ?>')">
+        <button class="btn-cfp-tonal btn-cfp-tonal-success" onclick="confirmApprove(<?php echo (int)$r['HeaderID']; ?>, '<?php echo htmlspecialchars(addslashes($hLabel)); ?>')">
           <i class="bi bi-check2 me-1"></i>อนุมัติ
         </button>
         <?php } ?>
         <?php if ($canReject) { ?>
-        <button class="btn-reject" onclick="openRejectModal(<?php echo (int)$r['HeaderID']; ?>, '<?php echo htmlspecialchars(addslashes($hLabel)); ?>')">
-          <i class="bi bi-x"></i>
+        <button class="btn-cfp-tonal btn-cfp-tonal-danger" onclick="openRejectModal(<?php echo (int)$r['HeaderID']; ?>, '<?php echo htmlspecialchars(addslashes($hLabel)); ?>')">
+          <i class="bi bi-x me-1"></i>ปฏิเสธ
         </button>
         <?php } ?>
         <?php if ($canMarkReviewed && empty($r['ReviewedBy'])) { ?>
-        <button class="btn-view" style="color:#2E7D32;border-color:#A0DCC8;" onclick="submitAction('mark_reviewed', <?php echo (int)$r['HeaderID']; ?>, '')">
+        <button class="btn-cfp-tonal btn-cfp-tonal-info" onclick="submitAction('mark_reviewed', <?php echo (int)$r['HeaderID']; ?>, '')">
           <i class="bi bi-eye-check me-1"></i>ตรวจแล้ว
         </button>
         <?php } ?>
-        <button class="btn-view" onclick="openDetailModal(<?php echo (int)$r['HeaderID']; ?>)">
+        <button class="btn-cfp-tonal btn-cfp-tonal-info" onclick="openDetailModal(<?php echo (int)$r['HeaderID']; ?>)">
           <i class="bi bi-eye me-1"></i>ดู
         </button>
         <?php if ($isSuperAdmin) { ?>
-        <button class="btn-view" style="color:#7C3AED;border-color:#DDD6FE;" onclick="adminUnlock(<?php echo (int)$r['HeaderID']; ?>, '<?php echo addslashes($hLabel); ?>')">
+        <button class="btn-cfp-tonal btn-cfp-tonal-navy" onclick="adminUnlock(<?php echo (int)$r['HeaderID']; ?>, '<?php echo addslashes($hLabel); ?>')">
           <i class="bi bi-unlock me-1"></i>Unlock
         </button>
         <?php } ?>
@@ -449,48 +496,6 @@ body { font-family: 'Prompt', sans-serif; }
     <?php } ?>
   </div>
   <?php } ?>
-</div>
-
-<!-- Bottom Split: Approved + Timeline -->
-<div class="bottom-grid">
-
-  <!-- Approved / Rejected -->
-  <div class="cfp-card" style="margin-bottom:0;">
-    <div class="section-hd">
-      <i class="bi bi-check-circle" style="color:var(--cfp-success);font-size:0.85rem;"></i>
-      อนุมัติแล้ว / ปฏิเสธ
-      <span class="badge-count" style="background:#D1FAE5;color:#065F46;"><?php echo count($approvedRows); ?></span>
-    </div>
-    <?php if (count($approvedRows) === 0) { ?>
-    <div style="text-align:center;padding:16px 0;color:var(--cfp-text-muted);font-size:0.82rem;">
-      ยังไม่มีการอนุมัติในช่วงเวลานี้
-    </div>
-    <?php } else { ?>
-    <?php foreach (array_slice($approvedRows, 0, 8) as $r) { ?>
-    <div class="apv-row">
-      <div>
-        <div class="apv-name"><?php echo htmlspecialchars($r['ItemName']); ?></div>
-        <div class="apv-sub">
-          <?php echo scopeBadge($r['ScopeNo']); ?>&nbsp;
-          <?php if (!empty($r['SiteName'])) echo htmlspecialchars($r['SiteName']) . ' · '; ?>
-          <?php if ($r['ApprovedDate'] instanceof DateTime) echo $r['ApprovedDate']->format('d M Y'); ?>
-        </div>
-      </div>
-      <?php if ($r['Status'] === 'Approved') { ?>
-        <span class="pill-approved"><i class="bi bi-check2 me-1"></i>อนุมัติ</span>
-      <?php } else { ?>
-        <span class="pill-rejected"><i class="bi bi-x me-1"></i>ปฏิเสธ</span>
-      <?php } ?>
-    </div>
-    <?php } ?>
-    <?php if (count($approvedRows) > 8) { ?>
-    <div style="text-align:center;margin-top:8px;">
-      <a href="approved.php?ym=<?php echo $filterYM; ?>" style="font-size:0.78rem;color:var(--cfp-primary);">
-        ดูทั้งหมด <?php echo count($approvedRows); ?> รายการ →
-      </a>
-    </div>
-    <?php } ?>
-    <?php } ?>
   </div>
 
   <!-- Timeline -->
@@ -612,7 +617,7 @@ body { font-family: 'Prompt', sans-serif; }
 
 <!-- Modal: View Detail -->
 <div class="modal fade" id="modalDetail" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
     <div class="modal-content" style="font-family:'Prompt',sans-serif;">
       <div class="modal-header">
         <h6 class="modal-title"><i class="bi bi-eye me-2"></i>รายละเอียดข้อมูล</h6>
@@ -620,6 +625,25 @@ body { font-family: 'Prompt', sans-serif; }
       </div>
       <div class="modal-body" id="detailBody">
         <div class="text-center py-4"><div class="spinner-border text-primary" style="width:2rem;height:2rem;"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: File Preview (ซ้อนอยู่เหนือ modalDetail) -->
+<div class="modal fade" id="modalFilePreview" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
+    <div class="modal-content" style="font-family:'Prompt',sans-serif;">
+      <div class="modal-header">
+        <h6 class="modal-title text-truncate"><i class="bi bi-paperclip me-2"></i><span id="filePreviewName">ไฟล์แนบ</span></h6>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center" id="filePreviewBody" style="min-height:200px;background:#F6F9FA;padding:16px;">
+      </div>
+      <div class="modal-footer">
+        <a id="filePreviewDownload" href="#" target="_blank" rel="noopener" class="btn btn-sm" style="background:var(--cfp-primary,#2AABB8);color:#fff;">
+          <i class="bi bi-box-arrow-up-right me-1"></i>เปิดแท็บใหม่ / ดาวน์โหลด
+        </a>
       </div>
     </div>
   </div>
@@ -719,6 +743,40 @@ function openDetailModal(dataID) {
         document.getElementById('detailBody').innerHTML = '<p class="text-danger">เชื่อมต่อ server ไม่ได้</p>';
     });
 }
+
+/* เปิดไฟล์แนบเป็น modal ซ้อนเหนือ modalDetail แทนการเปิดแท็บใหม่ — รองรับรูปภาพ (แสดงตรง) และ PDF (embed) */
+function openFilePreview(url, fileName) {
+    document.getElementById('filePreviewName').textContent = fileName;
+    document.getElementById('filePreviewDownload').href = url;
+    var body = document.getElementById('filePreviewBody');
+    var ext = (fileName.split('.').pop() || '').toLowerCase();
+    if (['jpg', 'jpeg', 'png'].indexOf(ext) !== -1) {
+        body.innerHTML = '<img src="' + url + '" style="max-width:100%;max-height:80vh;border-radius:8px;">';
+    } else if (ext === 'pdf') {
+        body.innerHTML = '<embed src="' + url + '" type="application/pdf" style="width:100%;height:80vh;border:none;border-radius:8px;">';
+    } else {
+        body.innerHTML = '<p style="color:var(--cfp-text-muted,#6B7280);">ไม่รองรับการแสดงตัวอย่างไฟล์ประเภทนี้ กด "เปิดแท็บใหม่" เพื่อดูไฟล์</p>';
+    }
+    var m = new bootstrap.Modal(document.getElementById('modalFilePreview'));
+    m.show();
+}
+
+/* Bootstrap ไม่รองรับ modal ซ้อนกันโดย native — ปรับ z-index ของ modal ที่เปิดทีหลังให้ลอยอยู่บนสุดเสมอ
+   กัน backdrop ของ modalFilePreview ไปบังอยู่ใต้ modalDetail */
+document.addEventListener('show.bs.modal', function(e) {
+    var openModalsCount = document.querySelectorAll('.modal.show').length;
+    if (openModalsCount > 0) {
+        setTimeout(function() {
+            var backdrops = document.querySelectorAll('.modal-backdrop:not(.stacked)');
+            var topBackdrop = backdrops[backdrops.length - 1];
+            if (topBackdrop) {
+                topBackdrop.classList.add('stacked');
+                topBackdrop.style.zIndex = 1060 + (10 * openModalsCount);
+            }
+            e.target.style.zIndex = 1070 + (10 * openModalsCount);
+        }, 0);
+    }
+});
 
 document.addEventListener('DOMContentLoaded', function() {
     var toastMsg  = <?php echo json_encode($toastMsg,  JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;

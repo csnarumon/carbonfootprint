@@ -106,6 +106,7 @@ $noRole   = count(array_filter($users, function($u) { return empty($u['RoleID'])
 /* ===== จำนวนตาม Role (สำหรับ Badge ใน Tab) ===== */
 $dataEntryCount = count(array_filter($users, function($u) { return (int)$u['RoleID'] === 1; }));
 $reviewerCount  = count(array_filter($users, function($u) { return (int)$u['RoleID'] === 2; }));
+$approverCount  = count(array_filter($users, function($u) { return (int)$u['RoleID'] === 3; }));
 
 /* ===== ดึงข้อมูล UserScopeAccess ทั้งหมด ===== */
 $scopeAccesses = array();
@@ -131,6 +132,18 @@ $noScopeCount   = count(array_filter($dataEntryUsers, function($u) use ($scopeAc
 /* นับ REVIEWER ที่ยังไม่มี Site */
 $reviewerUsers = array_filter($users, function($u) { return (int)$u['RoleID'] === 2; });
 $noReviewerSite = count(array_filter($reviewerUsers, function($u) use ($scopeAccesses) {
+    $uid = (int)$u['UserID'];
+    if (empty($scopeAccesses[$uid])) { return true; }
+    $hasSite = false;
+    foreach ($scopeAccesses[$uid] as $sc) {
+        if (!empty($sc['SiteID'])) { $hasSite = true; break; }
+    }
+    return !$hasSite;
+}));
+
+/* นับ APPROVER ที่ยังไม่มี Site */
+$approverUsers = array_filter($users, function($u) { return (int)$u['RoleID'] === 3; });
+$noApproverSite = count(array_filter($approverUsers, function($u) use ($scopeAccesses) {
     $uid = (int)$u['UserID'];
     if (empty($scopeAccesses[$uid])) { return true; }
     $hasSite = false;
@@ -389,13 +402,24 @@ function getRoleBadge($roleID, $roleName) {
             </button>
           </li>
           <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabApprover">
+              <i class="bi bi-patch-check me-1"></i>สิทธิ์ Approver
+              <span class="tab-badge <?php echo $noApproverSite > 0 ? 'warning' : 'primary'; ?>">
+                <?php echo $approverCount; ?>
+                <?php if ($noApproverSite > 0) { ?>
+                <span style="font-size:0.6rem;opacity:0.7;">(ขาด <?php echo $noApproverSite; ?>)</span>
+                <?php } ?>
+              </span>
+            </button>
+          </li>
+          <li class="nav-item">
             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabRoleGuide">
               <i class="bi bi-info-circle me-1"></i>สิทธิ์แต่ละ Role
             </button>
           </li>
         </ul>
 
-        <div class="tab-content">
+        <div class="tab-content" style="visibility:hidden;">
 
           <!-- ===== TAB: ผู้ใช้งาน ===== -->
           <div class="tab-pane fade show active" id="tabUsers">
@@ -734,6 +758,97 @@ function getRoleBadge($roleID, $roleName) {
           </div>
           <!-- END TAB REVIEWER -->
 
+          <!-- ===== TAB: สิทธิ์ Approver ===== -->
+          <div class="tab-pane fade" id="tabApprover">
+
+            <div class="alert alert-light border mb-3 py-2" style="font-size:0.8rem;">
+              <i class="bi bi-info-circle text-info me-1"></i>
+              กำหนด <strong>Site (โรงงาน)</strong> ที่ Approver แต่ละคนรับผิดชอบอนุมัติ
+              — ถ้าไม่กำหนด Approver จะไม่เห็น/อนุมัติข้อมูลใดเลย
+              <span style="display:inline-block;background:#FEF3C7;color:#B45309;border-radius:4px;font-size:0.7rem;font-weight:600;padding:1px 8px;margin-left:6px;">
+                <?php echo $approverCount; ?> คน
+                <?php if ($noApproverSite > 0) { ?>
+                <span style="color:#DC2626;">(ขาด <?php echo $noApproverSite; ?> คน)</span>
+                <?php } ?>
+              </span>
+            </div>
+
+            <div class="table-responsive">
+              <table id="tblApprover" class="table table-bordered table-hover align-middle" style="width:100%;font-size:0.85rem;">
+                <thead>
+                  <tr>
+                    <th style="width:40px;">#</th>
+                    <th>ชื่อ-นามสกุล</th>
+                    <th>ฝ่าย / แผนก</th>
+                    <th>Site ที่รับผิดชอบ</th>
+                    <th style="width:80px;" class="text-center">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php
+                  $ai = 1;
+                  foreach ($users as $u) {
+                      if ((int)$u['RoleID'] !== 3) { continue; }
+                      $uid = (int)$u['UserID'];
+                      $uAccesses = $scopeAccesses[$uid] ?? array();
+                      /* เก็บ SiteID ที่ unique จากทุก scope row */
+                      $apvSiteIDs = array();
+                      foreach ($uAccesses as $ac) {
+                          if (!empty($ac['SiteID'])) { $apvSiteIDs[] = (int)$ac['SiteID']; }
+                      }
+                      $apvSiteIDs = array_unique($apvSiteIDs);
+                  ?>
+                  <tr>
+                    <td><?php echo $ai++; ?></td>
+                    <td>
+                      <div style="font-weight:500;"><?php echo htmlspecialchars($u['FullName']); ?></div>
+                      <div style="font-size:0.72rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($u['Username']); ?></div>
+                    </td>
+                    <td style="font-size:0.8rem;">
+                      <?php echo htmlspecialchars($u['DivisionName'] ?? '—'); ?>
+                      <?php if (!empty($u['DeptName'])) { ?>
+                      <div style="font-size:0.72rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($u['DeptName']); ?></div>
+                      <?php } ?>
+                    </td>
+                    <td>
+                      <?php if (!empty($apvSiteIDs)) { ?>
+                      <div class="d-flex flex-wrap gap-1">
+                        <?php foreach ($sites as $s) {
+                          if (!in_array((int)$s['SiteID'], $apvSiteIDs)) { continue; } ?>
+                        <span style="display:inline-block;background:#E0F4F7;color:#1B7A8A;border:1px solid #A8D8DF;
+                                     border-radius:4px;font-size:0.72rem;font-weight:600;padding:1px 8px;"
+                              title="<?php echo htmlspecialchars($s['SiteName']); ?>">
+                          <?php echo htmlspecialchars($s['SiteCode']); ?>
+                        </span>
+                        <?php } ?>
+                      </div>
+                      <?php } else { ?>
+                      <span style="display:inline-block;background:#FEE2E2;color:#B91C1C;border:1px solid #FCA5A5;
+                                   border-radius:4px;font-size:0.72rem;font-weight:600;padding:1px 8px;">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>ยังไม่ได้กำหนด
+                      </span>
+                      <?php } ?>
+                    </td>
+                    <td class="text-center">
+                      <button class="btn btn-outline-primary btn-action"
+                              title="กำหนด Site"
+                              onclick="openApproverSiteModal(<?php echo $uid; ?>, '<?php echo htmlspecialchars(addslashes($u['FullName'])); ?>', [<?php echo implode(',', $apvSiteIDs); ?>])">
+                        <i class="bi bi-geo-alt"></i>
+                      </button>
+                    </td>
+                  </tr>
+                  <?php } ?>
+                  <?php if (empty($approverUsers)) { ?>
+                  <tr><td colspan="5" class="text-center py-3" style="color:var(--cfp-text-muted);font-size:0.85rem;">
+                    ยังไม่มีผู้ใช้ที่มี Role Approver ในระบบ
+                  </td></tr>
+                  <?php } ?>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <!-- END TAB APPROVER -->
+
           <!-- ===== TAB: สิทธิ์แต่ละ Role บนหน้าบันทึกข้อมูล ===== -->
           <div class="tab-pane fade" id="tabRoleGuide">
 
@@ -748,8 +863,6 @@ function getRoleBadge($roleID, $roleName) {
                   <tr style="background:var(--cfp-bg);">
                     <th style="width:180px;">Role</th>
                     <th class="text-center">เห็นรายการ</th>
-                    <th class="text-center">กรอกปริมาณ</th>
-                    <th class="text-center">ส่งอนุมัติ</th>
                     <th>ขอบเขต</th>
                     <th>หน้าที่</th>
                   </tr>
@@ -784,9 +897,9 @@ function getRoleBadge($roleID, $roleName) {
                           'id'    => 3,
                           'label' => '3 — Approver',
                           'bg'    => '#E0F2F1', 'color' => '#00695C', 'border' => '#99F6E4',
-                          'see'   => 'ทุก Site / หมวดหมู่',
+                          'see'   => 'เฉพาะ Site ที่กำหนด',
                           'fill'  => false, 'submit' => false,
-                          'scope' => 'เห็นข้อมูลทุกโรงงาน (อ่านอย่างเดียว)',
+                          'scope' => 'กรองตาม Site ที่กำหนดไว้ใน Tab "สิทธิ์ Approver"',
                       ),
                       array(
                           'id'    => 4,
@@ -802,7 +915,7 @@ function getRoleBadge($roleID, $roleName) {
                           'bg'    => '#E8F5E9', 'color' => '#2E7D32', 'border' => '#BBF7D0',
                           'see'   => 'ทุก Site / หมวดหมู่',
                           'fill'  => true, 'submit' => true,
-                          'scope' => 'เข้าถึงได้ทุกอย่างโดยไม่มีข้อจำกัด',
+                          'scope' => 'เข้าถึงได้ทุกอย่าง ยกเว้นแก้ไข/จัดการผู้ใช้ Role Admin (4) และ Sustainability Admin (5)',
                       ),
                       array(
                           'id'    => 6,
@@ -823,8 +936,6 @@ function getRoleBadge($roleID, $roleName) {
                       </span>
                     </td>
                     <td class="text-center"><?php echo $chkY; ?> <?php echo $rr['see']; ?></td>
-                    <td class="text-center"><?php echo $rr['fill'] ? $chkY : $chkN; ?></td>
-                    <td class="text-center"><?php echo $rr['submit'] ? $chkY : $chkN; ?></td>
                     <td style="font-size:0.78rem;color:var(--cfp-text-muted);"><?php echo $rr['scope']; ?></td>
                     <td style="font-size:0.78rem;"><?php echo htmlspecialchars($roleDescMap[$rr['id']] ?? ''); ?></td>
                   </tr>
@@ -1210,6 +1321,65 @@ if ($resDisCat) {
   <input type="hidden" name="site_ids" id="fRevSiteIDs"    value="">
 </form>
 
+<!-- ===== MODAL: กำหนด Site สำหรับ Approver ===== -->
+<div class="modal fade" id="modalApproverSite" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content font-prompt">
+      <div class="modal-header" style="background:var(--cfp-primary);color:#fff;padding:0.75rem 1.25rem;">
+        <h6 class="modal-title mb-0">
+          <i class="bi bi-geo-alt-fill me-2"></i>กำหนด Site ที่รับผิดชอบ
+        </h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3 p-2 rounded" style="background:#EEF6F8;font-size:0.83rem;">
+          <i class="bi bi-person-fill me-1" style="color:var(--cfp-primary);"></i>
+          <span id="approverSiteModalName" style="font-weight:600;"></span>
+        </div>
+        <div style="font-size:0.78rem;color:var(--cfp-text-muted);margin-bottom:8px;">
+          เลือก Site ที่ Approver คนนี้รับผิดชอบอนุมัติ
+        </div>
+        <div class="d-flex gap-2 mb-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                  style="font-size:0.72rem;" onclick="selectAllApvSite(true)">เลือกทั้งหมด</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                  style="font-size:0.72rem;" onclick="selectAllApvSite(false)">ล้างทั้งหมด</button>
+        </div>
+        <div id="approverSiteList">
+          <?php foreach ($sites as $s) { ?>
+          <div class="form-check mb-1" style="font-size:0.85rem;">
+            <input class="form-check-input apv-site-chk" type="checkbox"
+                   id="apvSiteChk<?php echo $s['SiteID']; ?>"
+                   value="<?php echo $s['SiteID']; ?>">
+            <label class="form-check-label" for="apvSiteChk<?php echo $s['SiteID']; ?>">
+              <span style="font-weight:500;"><?php echo htmlspecialchars($s['SiteName']); ?></span>
+            </label>
+          </div>
+          <?php } ?>
+          <?php if (empty($sites)) { ?>
+          <div style="color:var(--cfp-text-muted);font-size:0.82rem;">ยังไม่มี Site ในระบบค่ะ</div>
+          <?php } ?>
+        </div>
+      </div>
+      <div class="modal-footer" style="background:#F9FAFB;">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn-cfp-add" onclick="saveApproverSite()">
+          <i class="bi bi-check-circle me-1"></i>บันทึก
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- END MODAL APPROVER SITE -->
+
+<!-- Hidden form save approver site -->
+<form id="formApproverSite" method="POST" action="users_scope_save.php" style="display:none;">
+  <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+  <input type="hidden" name="action"   value="save_approver_site">
+  <input type="hidden" name="user_id"  id="fApvSiteUserID" value="0">
+  <input type="hidden" name="site_ids" id="fApvSiteIDs"    value="">
+</form>
+
 <!-- END MODAL SCOPE -->
 
 <!-- Toast -->
@@ -1244,6 +1414,70 @@ if ($resDisCat) {
 <script src="../assets/js/cfp-table-mobile.js"></script>
 
 <script>
+/* ===== จำ Tab ที่เลือกด้วย URL hash (#tabXxx) =====
+   ใช้ hash แทน sessionStorage เพราะ browser เก็บ URL รวม hash ไว้ให้เองตอน F5
+   โดยไม่ต้องพึ่ง JS storage เลย — กันปัญหา storage ไม่ทำงาน/ไทม์มิ่งผิดจังหวะ */
+(function() {
+    try {
+        var DEFAULT_TAB = 'tabUsers';
+        var VALID_TABS = ['tabUsers', 'tabScope', 'tabReviewer', 'tabApprover', 'tabRoleGuide'];
+
+        var getTabFromHash = function() {
+            var h = (window.location.hash || '').replace('#', '');
+            return VALID_TABS.indexOf(h) !== -1 ? h : DEFAULT_TAB;
+        };
+
+        var applyTab = function(key) {
+            var btn = document.querySelector('#userTabs [data-bs-target="#' + key + '"]');
+            var pane = document.getElementById(key);
+            if (!btn || !pane) { return; }
+
+            document.querySelectorAll('#userTabs button[data-bs-toggle="tab"]').forEach(function(b) {
+                b.classList.remove('active');
+                b.setAttribute('aria-selected', 'false');
+            });
+            btn.classList.add('active');
+            btn.setAttribute('aria-selected', 'true');
+
+            document.querySelectorAll('.tab-content > .tab-pane').forEach(function(p) {
+                p.classList.remove('show', 'active');
+            });
+            pane.classList.add('show', 'active');
+        };
+
+        var restoreTab = function() {
+            applyTab(getTabFromHash());
+            var tc = document.querySelector('.tab-content');
+            if (tc) { tc.style.visibility = 'visible'; }
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', restoreTab);
+        } else {
+            restoreTab();
+        }
+
+        /* อัปเดต hash เมื่อคลิกเปลี่ยน tab (ไม่ scroll กระโดด เพราะไม่ใช้ location.hash= ตรงๆ) */
+        var bindTabSave = function() {
+            document.querySelectorAll('#userTabs button[data-bs-toggle="tab"]').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    var target = e.currentTarget.getAttribute('data-bs-target').replace('#', '');
+                    history.replaceState(null, '', '#' + target);
+                    applyTab(target);
+                });
+            });
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', bindTabSave);
+        } else {
+            bindTabSave();
+        }
+    } catch (e) {
+        console.error('Tab-restore error:', e);
+        var tcFallback = document.querySelector('.tab-content');
+        if (tcFallback) { tcFallback.style.visibility = 'visible'; }
+    }
+})();
+
 /* ===== DataTable ===== */
 var table;
 var FILTER_KEY = 'cfp_users_filters';
@@ -1345,28 +1579,6 @@ function showToast(msg, isError) {
     var toast = new bootstrap.Toast(document.getElementById(id), { delay: 3000 });
     toast.show();
 }
-
-/* ===== จำ Tab ที่เลือกด้วย sessionStorage ===== */
-(function() {
-    var TAB_KEY = 'cfp_users_tab';
-
-    /* อ่าน tab จาก URL ?tab= (หลัง redirect) หรือ sessionStorage */
-    var urlParams = new URLSearchParams(window.location.search);
-    var tabFromUrl = urlParams.get('tab');
-    var activeTab  = tabFromUrl || sessionStorage.getItem(TAB_KEY) || 'tabUsers';
-
-    /* activate tab ที่ถูกต้อง */
-    var tabEl = document.querySelector('[data-bs-target="#' + activeTab + '"]');
-    if (tabEl) { new bootstrap.Tab(tabEl).show(); }
-
-    /* บันทึก tab เมื่อเปลี่ยน */
-    document.querySelectorAll('#userTabs button[data-bs-toggle="tab"]').forEach(function(btn) {
-        btn.addEventListener('shown.bs.tab', function(e) {
-            var target = e.target.getAttribute('data-bs-target').replace('#', '');
-            sessionStorage.setItem(TAB_KEY, target);
-        });
-    });
-})();
 
 /* ===== Auto Toast จาก session ===== */
 <?php if ($toastMsg) { ?>
@@ -1639,7 +1851,7 @@ function saveScopeAccess() {
         if (res.success) {
             bootstrap.Modal.getInstance(document.getElementById('modalScope')).hide();
             showToast(res.msg || 'บันทึกสิทธิ์เรียบร้อย');
-            setTimeout(function() { location.reload(); }, 800);
+            setTimeout(function() { location.reload(); }, 1600);
         } else {
             showToast(res.msg || 'เกิดข้อผิดพลาด', true);
             console.error('Error response:', res);
@@ -1671,7 +1883,7 @@ function doSaveScope(scopes) {
         if (res.success) {
             bootstrap.Modal.getInstance(document.getElementById('modalScope')).hide();
             showToast(res.msg || 'บันทึกสิทธิ์เรียบร้อย');
-            setTimeout(function() { location.reload(); }, 800);
+            setTimeout(function() { location.reload(); }, 1600);
         } else {
             showToast(res.msg || 'เกิดข้อผิดพลาด', true);
             console.error('Error response:', res);
@@ -1738,7 +1950,74 @@ function saveReviewerSite() {
         if (res.success) {
             bootstrap.Modal.getInstance(document.getElementById('modalReviewerSite')).hide();
             showToast(res.msg || 'บันทึกสิทธิ์เรียบร้อย');
-            setTimeout(function() { location.reload(); }, 800);
+            setTimeout(function() { location.reload(); }, 1600);
+        } else {
+            showToast(res.msg || 'เกิดข้อผิดพลาด', true);
+            console.error('Error response:', res);
+        }
+    })
+    .catch(function(err) {
+        Swal.close();
+        console.error('Fetch error:', err);
+        showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ', true);
+    });
+}
+/* ===== Approver Site Modal ===== */
+var currentApproverUserID = 0;
+
+function openApproverSiteModal(userID, userName, assignedSiteIDs) {
+    currentApproverUserID = userID;
+    document.getElementById('approverSiteModalName').textContent = userName;
+    /* reset */
+    document.querySelectorAll('.apv-site-chk').forEach(function(c) { c.checked = false; });
+    /* โหลดค่าเดิม */
+    assignedSiteIDs.forEach(function(sid) {
+        var el = document.getElementById('apvSiteChk' + sid);
+        if (el) { el.checked = true; }
+    });
+    new bootstrap.Modal(document.getElementById('modalApproverSite')).show();
+}
+
+function selectAllApvSite(checked) {
+    document.querySelectorAll('.apv-site-chk').forEach(function(c) { c.checked = checked; });
+}
+
+function saveApproverSite() {
+    var selected = [];
+    document.querySelectorAll('.apv-site-chk:checked').forEach(function(c) {
+        selected.push(c.value);
+    });
+
+    if (selected.length === 0) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'กรุณาเลือก Site อย่างน้อย 1 แห่ง',
+            confirmButtonText: 'ตกลง',
+            customClass: { popup: 'font-prompt' }
+        });
+        return;
+    }
+
+    var fd = new FormData();
+    fd.append('action', 'save_approver_site');
+    fd.append('user_id', currentApproverUserID);
+    fd.append('site_ids', selected.join(','));
+    fd.append('csrf_token', csrfToken);
+
+    Swal.fire({
+        title: 'กำลังบันทึก...',
+        allowOutsideClick: false,
+        didOpen: function() { Swal.showLoading(); }
+    });
+
+    fetch('users_scope_save.php', { method: 'POST', body: fd })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        Swal.close();
+        if (res.success) {
+            bootstrap.Modal.getInstance(document.getElementById('modalApproverSite')).hide();
+            showToast(res.msg || 'บันทึกสิทธิ์เรียบร้อย');
+            setTimeout(function() { location.reload(); }, 1600);
         } else {
             showToast(res.msg || 'เกิดข้อผิดพลาด', true);
             console.error('Error response:', res);

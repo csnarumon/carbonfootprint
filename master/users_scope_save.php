@@ -112,6 +112,61 @@ if ($action === 'save_reviewer_site') {
 }
 
 /* ===========================
+   action: save_approver_site
+   =========================== */
+if ($action === 'save_approver_site') {
+
+    if ($targetRoleID !== 3) {
+        jsonOut(false, 'กำหนด Site Approver ได้เฉพาะผู้ใช้ Role Approver เท่านั้น');
+    }
+
+    /* แปลง site_ids string → array int */
+    $siteIDsRaw = trim($_POST['site_ids'] ?? '');
+    $newSiteIDs = array();
+    if ($siteIDsRaw !== '') {
+        foreach (explode(',', $siteIDsRaw) as $sid) {
+            $sid = (int)trim($sid);
+            if ($sid > 0) { $newSiteIDs[] = $sid; }
+        }
+    }
+
+    sqlsrv_begin_transaction($conn);
+
+    /* DELETE ทั้งหมดแล้ว INSERT ใหม่ — หลีกเลี่ยงปัญหา upsert + sqlsrv */
+    $resDel = sqlsrv_query($conn,
+        "DELETE FROM CFP_UserScopeAccess WHERE UserID=?",
+        array($targetID));
+    if ($resDel === false) {
+        sqlsrv_rollback($conn);
+        jsonOut(false, 'เกิดข้อผิดพลาดในการรีเซ็ตสิทธิ์');
+    }
+
+    /* INSERT Site x Scope 1,2,3 ที่เลือก */
+    foreach ($newSiteIDs as $siteID) {
+        foreach (array(1, 2, 3) as $sNo) {
+            $resIn = sqlsrv_query($conn,
+                "INSERT INTO CFP_UserScopeAccess
+                 (UserID, ScopeNo, CategoryIDs, SiteID, IsActive, CreatedBy, CreatedDate)
+                 VALUES (?, ?, NULL, ?, 1, ?, GETDATE())",
+                array($targetID, $sNo, $siteID, $myUserID));
+            if ($resIn === false) {
+                $err = sqlsrv_errors();
+                sqlsrv_rollback($conn);
+                jsonOut(false, 'เกิดข้อผิดพลาดในการบันทึก Site ' . $siteID . ': ' . ($err[0]['message'] ?? ''));
+            }
+        }
+    }
+
+    sqlsrv_commit($conn);
+
+    logAction($conn, 'USER_SCOPE_SAVE', 'CFP_UserScopeAccess', $targetID,
+              null, null, null,
+              'กำหนด Site Approver [' . implode(',', $newSiteIDs) . '] UserID=' . $targetID);
+
+    jsonOut(true, 'บันทึกสิทธิ์ Approver เรียบร้อยแล้ว');
+}
+
+/* ===========================
    action: save_scope (สำหรับ Data Entry)
    =========================== */
 if ($action !== 'save_scope') { 

@@ -41,7 +41,7 @@ if ($resIS) {
 /* ===== ดึงรายการ ===== */
 $res  = sqlsrv_query($conn, "
     SELECT a.ItemID, a.ItemCode, a.ItemName, a.ItemNameEN,
-           a.ScopeNo, a.CategoryNo, a.Scope1Type, a.UnitID, u.UnitName,
+           a.ScopeNo, a.CategoryNo, a.Scope1Type, a.MobileRoadType, a.UnitID, u.UnitName,
            a.InputMethod, a.Description, a.SortOrder, a.IsActive
     FROM CFP_ActivityItem a
     LEFT JOIN CFP_Unit u ON a.UnitID = u.UnitID
@@ -103,6 +103,8 @@ $scope2Labels = array(
     .status-dot { width:8px;height:8px;border-radius:50%;display:inline-block; }
     .scope-badge { display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:600;color:#fff; }
     .cat-badge { display:inline-block;padding:2px 7px;border-radius:8px;font-size:0.7rem;background:#F3F4F6;color:#4A7A88; }
+    .filter-bar { display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap; padding:16px; background:#fff; border:1px solid var(--cfp-border); border-radius:10px; }
+    .filter-bar .fbar-r { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; }
   </style>
 </head>
 <body>
@@ -168,32 +170,41 @@ $scope2Labels = array(
         <div style="font-size:0.92rem;font-weight:600;color:var(--cfp-primary);margin-bottom:12px;">
           <i class="bi bi-list-check me-2"></i>รายการกิจกรรมทั้งหมด
         </div>
-        <div class="cfp-page-toolbar mb-3">
-          <div class="d-flex gap-2 flex-wrap flex-grow-1" style="max-width:680px;">
-            <div class="cfp-search-wrap flex-grow-1" style="position:relative;">
-            <input type="text" id="fltKeyword" class="form-control font-prompt" style="font-size:0.85rem;min-width:160px;padding-right:28px;" placeholder="ค้นหาชื่อรายการ...">
-            <button type="button" class="cfp-search-clear" onclick="clearKeyword()" title="ล้างคำค้นหา" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;padding:2px;line-height:1;color:var(--cfp-text-muted,#888);font-size:0.95rem;cursor:pointer;z-index:2;"><i class="bi bi-x-circle-fill"></i></button>
+        <div class="filter-bar mb-3">
+          <div>
+            <label class="form-label">ค้นหา</label>
+            <div class="cfp-search-wrap" style="position:relative;">
+              <input type="text" id="fltKeyword" class="form-control font-prompt" style="width:190px;padding-right:28px;" placeholder="ค้นหาชื่อรายการ...">
+              <button type="button" class="cfp-search-clear" onclick="clearKeyword()" title="ล้างคำค้นหา" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;padding:2px;line-height:1;color:var(--cfp-text-muted,#888);font-size:0.95rem;cursor:pointer;z-index:2;"><i class="bi bi-x-circle-fill"></i></button>
             </div>
-            <select id="fltScope" class="form-select font-prompt" style="font-size:0.85rem;max-width:130px;">
+          </div>
+          <div>
+            <label class="form-label">Scope</label>
+            <select id="fltScope" class="form-select font-prompt">
               <option value="">ทุก Scope</option>
               <option value="1">Scope 1</option>
               <option value="2">Scope 2</option>
               <option value="3">Scope 3</option>
             </select>
-            <select id="fltCat" class="form-select font-prompt" style="font-size:0.85rem;max-width:130px;">
+          </div>
+          <div>
+            <label class="form-label">Category</label>
+            <select id="fltCat" class="form-select font-prompt" disabled>
               <option value="">ทุก Category</option>
-              <?php for ($c=1;$c<=15;$c++) { echo '<option value="'.$c.'">Cat.'.$c.'</option>'; } ?>
             </select>
-            <select id="fltStatus" class="form-select font-prompt" style="font-size:0.85rem;max-width:120px;">
+          </div>
+          <div>
+            <label class="form-label">สถานะ</label>
+            <select id="fltStatus" class="form-select font-prompt">
               <option value="">สถานะทั้งหมด</option>
               <option value="1">ใช้งาน</option>
               <option value="0">ปิด</option>
             </select>
-            <button class="btn btn-outline-secondary btn-sm" onclick="clearFilter()">
+          </div>
+          <div class="fbar-r">
+            <button class="btn btn-outline-secondary btn-sm text-nowrap" onclick="clearFilter()">
               <i class="bi bi-x-circle me-1"></i>ล้าง
             </button>
-          </div>
-          <div class="cfp-page-toolbar-actions">
             <button class="btn-cfp-add" onclick="openModal(0)">
               <i class="bi bi-plus-circle"></i>เพิ่มรายการ
             </button>
@@ -227,7 +238,8 @@ $scope2Labels = array(
               ?>
               <tr data-status="<?php echo $r['IsActive']?'1':'0'; ?>"
                   data-scope="<?php echo $sNo; ?>"
-                  data-cat="<?php echo $cNo??''; ?>">
+                  data-cat="<?php echo $cNo??''; ?>"
+                  data-scope1type="<?php echo htmlspecialchars($r['Scope1Type']??''); ?>">
                 <td class="cfp-td-expand text-center" style="padding:4px;width:32px;"></td>
                 <td class="cfp-td-num"><?php echo $i+1; ?></td>
                 <td>
@@ -248,6 +260,15 @@ $scope2Labels = array(
                   <?php } elseif ($sNo === 1 && !empty($r['Scope1Type'])) { ?>
                   <span class="cat-badge"><?php echo htmlspecialchars($r['Scope1Type']); ?></span>
                   <div style="font-size:0.68rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($scope1Labels[$r['Scope1Type']]??''); ?></div>
+                  <?php if ($r['Scope1Type'] === 'Mobile') { ?>
+                    <?php if ($r['MobileRoadType'] === 'OnRoad') { ?>
+                    <span style="font-size:0.65rem;color:#1D4ED8;font-weight:600;"><i class="bi bi-signpost-split"></i> On-road</span>
+                    <?php } elseif ($r['MobileRoadType'] === 'OffRoad') { ?>
+                    <span style="font-size:0.65rem;color:#C2410C;font-weight:600;"><i class="bi bi-cone-striped"></i> Off-road</span>
+                    <?php } else { ?>
+                    <span style="font-size:0.65rem;color:#6B7280;font-weight:600;"><i class="bi bi-question-diamond"></i> ยังไม่ระบุ</span>
+                    <?php } ?>
+                  <?php } ?>
                   <?php } else { ?>
                   <span style="color:var(--cfp-text-muted);font-size:0.75rem;">—</span>
                   <?php } ?>
@@ -374,12 +395,21 @@ $scope2Labels = array(
             </div>
             <div class="col-md-4" id="scope1Wrap" style="display:none;">
               <label class="form-label form-required">ประเภท (Scope 1)</label>
-              <select class="form-select font-prompt" name="Scope1Type" id="fScope1Type">
+              <select class="form-select font-prompt" name="Scope1Type" id="fScope1Type" onchange="onScope1TypeChange()">
                 <option value="">— เลือกประเภท —</option>
                 <?php foreach ($scope1Labels as $val => $label) {
                   echo '<option value="'.htmlspecialchars($val).'">'.htmlspecialchars($label).'</option>';
                 } ?>
               </select>
+            </div>
+            <div class="col-md-6" id="mobileRoadWrap" style="display:none;">
+              <label class="form-label form-required">On-road / Off-road</label>
+              <select class="form-select font-prompt" name="MobileRoadType" id="fMobileRoadType">
+                <option value="">— เลือก —</option>
+                <option value="OnRoad">On-road (วิ่งถนนสาธารณะ เช่น รถกระบะ รถตู้)</option>
+                <option value="OffRoad">Off-road (ไม่วิ่งถนนสาธารณะ เช่น forklift เครื่องตัดหญ้า)</option>
+              </select>
+              <div class="form-text">ใช้แยกค่า EF ให้ถูกต้อง (Mobile-OnRoad กับ Mobile-OffRoad ใช้ค่าคนละชุด)</div>
             </div>
             <div class="col-md-6">
               <label class="form-label form-required">ชื่อรายการ (ภาษาไทย)</label>
@@ -527,12 +557,31 @@ $scope2Labels = array(
 <script src="../assets/js/cfp-table-mobile.js"></script>
 <script>
 /* Category options แยกตาม Scope — ใช้สลับ populate ช่อง #fCategoryNo เดียวกัน */
+var catOptionsScope1 = <?php echo json_encode($scope1Labels, JSON_UNESCAPED_UNICODE); ?>;
 var catOptionsScope2 = <?php echo json_encode($scope2Labels, JSON_UNESCAPED_UNICODE); ?>;
 var catOptionsScope3 = <?php
     $s3 = array();
     foreach ($catLabels as $c => $lbl) { $s3[$c] = 'Cat.' . $c . ' — ' . $lbl; }
     echo json_encode($s3, JSON_UNESCAPED_UNICODE);
 ?>;
+
+/* ช่องกรอง Category บนตาราง — เปลี่ยนตัวเลือกตาม Scope ที่เลือก เพราะความหมาย Category ต่างกันคนละชุดต่อ Scope
+   (Scope1 ใช้ Scope1Type เป็น "หมวด" แทน CategoryNo ซึ่ง Scope1 ไม่มีค่า) */
+function populateFilterCategoryOptions(scopeVal) {
+    var sel = document.getElementById('fltCat');
+    sel.innerHTML = '<option value="">ทุก Category</option>';
+    var opts = (scopeVal === '1') ? catOptionsScope1 : (scopeVal === '2') ? catOptionsScope2 : (scopeVal === '3') ? catOptionsScope3 : null;
+    sel.disabled = !opts;
+    if (!opts) { return; }
+    for (var key in opts) {
+        if (opts.hasOwnProperty(key)) {
+            var opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = opts[key];
+            sel.appendChild(opt);
+        }
+    }
+}
 
 function populateCategoryOptions(scopeVal) {
     var sel = document.getElementById('fCategoryNo');
@@ -560,6 +609,7 @@ var itemData = <?php
             'scopeNo'    => (int)$r['ScopeNo'],
             'categoryNo' => $r['CategoryNo'] !== null ? (int)$r['CategoryNo'] : 0,
             'scope1Type' => $r['Scope1Type'] ?? '',
+            'mobileRoadType' => $r['MobileRoadType'] ?? '',
             'unitID'     => (int)($r['UnitID'] ?? 0),
             'inputMethod'=> (int)$r['InputMethod'],
             'desc'       => $r['Description'] ?? '',
@@ -576,7 +626,11 @@ $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
     var st  = $('#fltStatus').val();
     var row = $('#tblItem').DataTable().row(dataIndex).node();
     if (sc  && $(row).attr('data-scope')  !== sc)  { return false; }
-    if (cat && $(row).attr('data-cat')    !== cat) { return false; }
+    if (cat) {
+        /* Scope1 ไม่มี CategoryNo — ใช้ Scope1Type (Stationary/Mobile/Fugitive/Process) เป็น "หมวด" แทน */
+        var catAttr = (sc === '1') ? 'data-scope1type' : 'data-cat';
+        if ($(row).attr(catAttr) !== cat) { return false; }
+    }
     if (st  && $(row).attr('data-status') !== st)  { return false; }
     return true;
 });
@@ -586,6 +640,7 @@ $(document).ready(function() {
     /* ── กู้คืนค่า filter dropdown ที่เลือกไว้ก่อนหน้า (ก่อน save) จาก sessionStorage ── */
     var savedFlt = JSON.parse(sessionStorage.getItem('activityitemFilters') || '{}');
     if (savedFlt.scope)  { $('#fltScope').val(savedFlt.scope); }
+    populateFilterCategoryOptions($('#fltScope').val());
     if (savedFlt.cat)    { $('#fltCat').val(savedFlt.cat); }
     if (savedFlt.status) { $('#fltStatus').val(savedFlt.status); }
 
@@ -613,6 +668,13 @@ $(document).ready(function() {
         drawCallback: function () { cfpInitMobileExpand('tblItem'); }
     });
 
+    /* ── stateSave:true ของ DataTables จำคำค้นหา (global search) ไว้ใน localStorage เองแยกจาก
+       #fltKeyword ที่เป็น custom input — พอโหลดหน้าใหม่ ตารางกรองตามคำเดิมอัตโนมัติ แต่ช่อง
+       ค้นหาที่เห็นว่างเปล่า (ไม่ sync กัน) ทำให้ดูเหมือนกรองค้างอยู่ทั้งที่ไม่ได้พิมพ์อะไร —
+       ดึงค่าที่ DataTables restore มาใส่กลับในช่อง input ให้ตรงกัน */
+    var restoredSearch = tblApi.search();
+    if (restoredSearch) { $('#fltKeyword').val(restoredSearch).trigger('input'); }
+
     /* ── บันทึกค่า filter ทุกครั้งที่เปลี่ยน + re-apply ตอนโหลดหน้า ── */
     function saveFilterState() {
         sessionStorage.setItem('activityitemFilters', JSON.stringify({
@@ -622,7 +684,8 @@ $(document).ready(function() {
         }));
     }
     $('#fltKeyword').on('keyup', function() { tblApi.search(this.value).draw(); });
-    $('#fltScope, #fltCat, #fltStatus').on('change', function() { saveFilterState(); tblApi.draw(); });
+    $('#fltScope').on('change', function() { populateFilterCategoryOptions(this.value); saveFilterState(); tblApi.draw(); });
+    $('#fltCat, #fltStatus').on('change', function() { saveFilterState(); tblApi.draw(); });
 
     /* re-apply ค่าที่กู้คืนมาตอนโหลดหน้าเสร็จ (ต้อง draw หลัง DataTable พร้อมแล้ว) */
     if (savedFlt.scope || savedFlt.cat || savedFlt.status) { tblApi.draw(); }
@@ -638,6 +701,7 @@ function clearKeyword() {
 }
 function clearFilter() {
     $('#fltKeyword,#fltScope,#fltCat,#fltStatus').val('');
+    populateFilterCategoryOptions('');
     sessionStorage.removeItem('activityitemFilters');
     tblApi.search('').draw();
 }
@@ -656,6 +720,19 @@ function onScopeChange() {
     }
     if (sc === '1') { s1Wrap.style.display=''; s1.required=true; }
     else            { s1Wrap.style.display='none'; s1.required=false; s1.value=''; }
+    onScope1TypeChange();
+}
+
+/* แสดงช่อง On-road/Off-road เฉพาะตอนเลือกประเภท Mobile — ค่า EF ของ Mobile-OnRoad
+   กับ Mobile-OffRoad เป็นคนละชุดกัน ต้องรู้ให้ชัดตอนผูก EF (master/ef_link.php) */
+function onScope1TypeChange() {
+    var wrap = document.getElementById('mobileRoadWrap');
+    var fld  = document.getElementById('fMobileRoadType');
+    if (document.getElementById('fScope1Type').value === 'Mobile') {
+        wrap.style.display = ''; fld.required = true;
+    } else {
+        wrap.style.display = 'none'; fld.required = false; fld.value = '';
+    }
 }
 
 function openModal(id) {
@@ -664,12 +741,14 @@ function openModal(id) {
     document.getElementById('fCodeDisplay').value='ระบบสร้างให้อัตโนมัติ';
     document.getElementById('fScopeNo').value=''; document.getElementById('fCategoryNo').value='';
     document.getElementById('fScope1Type').value='';
+    document.getElementById('fMobileRoadType').value='';
     document.getElementById('fName').value=''; document.getElementById('fNameEN').value='';
     document.getElementById('fUnitID').value=''; document.getElementById('fInputMethod').value='1';
     document.getElementById('fSort').value='99'; document.getElementById('fDesc').value='';
     document.getElementById('fActive').value='1';
     document.getElementById('catWrap').style.display='none';
     document.getElementById('scope1Wrap').style.display='none';
+    document.getElementById('mobileRoadWrap').style.display='none';
     document.getElementById('statusWrap').style.display='none';
 
     if (id === 0) {
@@ -702,6 +781,8 @@ function openModal(id) {
             document.getElementById('scope1Wrap').style.display='';
             document.getElementById('fScope1Type').required=true;
             document.getElementById('fScope1Type').value=d.scope1Type||'';
+            onScope1TypeChange();
+            document.getElementById('fMobileRoadType').value=d.mobileRoadType||'';
         }
     }
     new bootstrap.Modal(document.getElementById('modalItem')).show();

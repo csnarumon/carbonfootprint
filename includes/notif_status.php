@@ -31,7 +31,10 @@ function cfpGetNotifications($conn, $roleID, $userID) {
 
     $siteFilter = '';
     $params = array();
-    if ($roleID === 2) {
+    /* Admin/SustAdmin (Role จริง 4/5) ที่ Elevate ลงมาเป็น Reviewer (roleID=2) ชั่วคราว
+       ต้องเห็นทุก Site เหมือนปกติ — ไม่กรองตาม CFP_UserScopeAccess ของ UserID จริง
+       (บัญชี Admin ไม่เคยมีแถวในตารางนี้ ทำให้ elevate แล้วมองไม่เห็นการแจ้งเตือนอะไรเลย) */
+    if ($roleID === 2 && !isSuperAdmin()) {
         $resSite = sqlsrv_query($conn,
             "SELECT DISTINCT SiteID FROM CFP_UserScopeAccess WHERE UserID = ? AND IsActive = 1 AND SiteID IS NOT NULL",
             array($userID));
@@ -47,14 +50,22 @@ function cfpGetNotifications($conn, $roleID, $userID) {
         $params = $allowedSites;
     }
 
+    /* 1 แถว = 1 Header (1 ชุดที่ submit มา) ไม่ใช่ 1 แถวต่อ Activity Item — เพราะ 1 Header
+       มีได้หลาย Item พร้อมกัน ถ้า join ตรงๆ แบบเดิมจะได้หลายแถวซ้อนกันจน "1 รายการ" (นับ Header)
+       กับจำนวนที่ list แสดงจริงไม่ตรงกัน (เช่น badge บอก 1 แต่เห็นในรายการ 5 บรรทัด) */
     $sql = "
         SELECT TOP 5
-               h.HeaderID, a.ItemID, i.ItemName, i.ScopeNo,
-               h.SiteID, s.SiteName, us.FullName AS SubmitterName,
-               h.SubmittedDate
+               h.HeaderID, h.SiteID, s.SiteName, us.FullName AS SubmitterName, h.SubmittedDate,
+               (SELECT TOP 1 i2.ItemName FROM CFP_ActivityData a2
+                JOIN CFP_ActivityItem i2 ON i2.ItemID = a2.ItemID
+                WHERE a2.HeaderID = h.HeaderID AND a2.IsActive = 1
+                ORDER BY a2.ActivityID) AS ItemName,
+               (SELECT TOP 1 i3.ScopeNo FROM CFP_ActivityData a3
+                JOIN CFP_ActivityItem i3 ON i3.ItemID = a3.ItemID
+                WHERE a3.HeaderID = h.HeaderID AND a3.IsActive = 1
+                ORDER BY a3.ActivityID) AS ScopeNo,
+               (SELECT COUNT(*) FROM CFP_ActivityData a4 WHERE a4.HeaderID = h.HeaderID AND a4.IsActive = 1) AS ItemCount
         FROM CFP_MonthlyHeader h
-        LEFT JOIN CFP_ActivityData a ON a.HeaderID = h.HeaderID AND a.IsActive = 1
-        LEFT JOIN CFP_ActivityItem i ON i.ItemID = a.ItemID
         LEFT JOIN CFP_Site s ON s.SiteID = h.SiteID
         LEFT JOIN CFP_User us ON us.UserID = h.SubmittedBy
         WHERE h.Status = 1" . $siteFilter . "
@@ -63,6 +74,10 @@ function cfpGetNotifications($conn, $roleID, $userID) {
     $res = @sqlsrv_query($conn, $sql, $params);
     if ($res) {
         while ($row = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC)) {
+            $cnt = (int)($row['ItemCount'] ?? 0);
+            if ($cnt > 1) {
+                $row['ItemName'] = ($row['ItemName'] ?? 'ไม่มีรายการ') . ' และอีก ' . ($cnt - 1) . ' รายการ';
+            }
             $result['items'][] = $row;
         }
     }

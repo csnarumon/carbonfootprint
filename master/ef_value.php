@@ -36,25 +36,36 @@ $resSrc = sqlsrv_query($conn,
 $sources = array();
 while ($r = sqlsrv_fetch_array($resSrc, SQLSRV_FETCH_ASSOC)) { $sources[] = $r; }
 
-/* ===== ActivityItem dropdown (RefID) ===== */
-$resItem = sqlsrv_query($conn,
-    "SELECT ItemID, ItemCode, ItemName, ScopeNo, CategoryNo
-     FROM CFP_ActivityItem WHERE IsActive=1 ORDER BY ScopeNo, CategoryNo, ItemName");
-$actItems = array();
-while ($r = sqlsrv_fetch_array($resItem, SQLSRV_FETCH_ASSOC)) { $actItems[] = $r; }
-
-/* ===== ดึง EF Values ===== */
+/* ===== ดึง EF Values — ผูกกับ Item ได้หลายตัว (many-to-one ผ่าน CFP_ActivityItem.EFID)
+   ใช้ STRING_AGG รวมชื่อ Item ทั้งหมดที่ผูกกับ EF แถวนี้ไว้ในคอลัมน์เดียว ===== */
 $res  = sqlsrv_query($conn, "
     SELECT e.EFID, e.EFCode, e.EFName, e.EFValue, e.GWP, e.Unit,
-           e.Scope, e.Category, e.GasType, e.YearApply, e.ValidUntil,
-           e.RefID, e.RefTable, e.SourceID, e.IsActive,
+           e.Scope, e.Category, e.GasType, e.YearApply, e.ValidUntil, e.EffectiveDate,
+           e.SourceID, e.IsActive,
            e.CreatedDate, e.PreviousEFID,
            s.SourceCode, s.SourceName,
-           a.ItemName, a.ScopeNo, a.CategoryNo
+           li.LinkedItemNames, li.LinkedItemCount
     FROM CFP_EFValue e
-    LEFT JOIN CFP_EFSource      s ON e.SourceID = s.SourceID
-    LEFT JOIN CFP_ActivityItem  a ON e.RefID = a.ItemID AND e.RefTable = 'CFP_ActivityItem'
-    ORDER BY e.YearApply DESC, e.Scope, e.Category, e.EFName");
+    LEFT JOIN CFP_EFSource s ON e.SourceID = s.SourceID
+    OUTER APPLY (
+        /* ใช้ FOR XML PATH แทน STRING_AGG เพราะ SQL Server instance นี้ compatibility level
+           ไม่รองรับ STRING_AGG (ต้องการ 2017+/level 130) — FOR XML PATH ใช้ได้ทุกเวอร์ชัน */
+        SELECT STUFF((
+            SELECT ', ' + a2.ItemName
+            FROM CFP_ActivityItem a2
+            WHERE a2.EFID = e.EFID
+            FOR XML PATH('')
+        ), 1, 2, '') AS LinkedItemNames,
+        (SELECT COUNT(*) FROM CFP_ActivityItem a3 WHERE a3.EFID = e.EFID) AS LinkedItemCount
+    ) li
+    ORDER BY e.Scope, CASE e.Category
+        WHEN 'Stationary' THEN 1
+        WHEN 'Mobile-OffRoad' THEN 2
+        WHEN 'Mobile-OnRoad' THEN 3
+        WHEN 'Fugitive' THEN 4
+        WHEN 'Process' THEN 5
+        WHEN 'Electricity' THEN 6
+        ELSE 99 END, e.YearApply DESC, e.EFName");
 $rows = array();
 while ($r = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC)) { $rows[] = $r; }
 
@@ -69,6 +80,47 @@ if ($resUsed) { $rU = sqlsrv_fetch_array($resUsed, SQLSRV_FETCH_ASSOC); $usedCou
 /* ===== Labels ===== */
 $scopeColors = array('Scope1'=>'#2AABB8','Scope2'=>'#F59E0B','Scope3'=>'#8B5CF6');
 $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>'#B45309','CO2e'=>'#16A34A');
+/* ไอคอนต่อหมวด สำหรับหัวข้อกลุ่ม (แบบเดียวกับ ef_link.php) */
+$catIconMap = array(
+    'Stationary'     => 'bi-fire',
+    'Mobile-OnRoad'  => 'bi-truck',
+    'Mobile-OffRoad' => 'bi-truck-flatbed',
+    'Fugitive'       => 'bi-droplet-half',
+    'Process'        => 'bi-gear-wide-connected',
+    'Electricity'    => 'bi-lightning-charge-fill',
+);
+
+/* ชื่อกลุ่มอ้างอิงตามหัวข้อจริงใน Emission Factor_2569.pdf — ใช้จัดกลุ่มแถวใน DataTables (RowGroup) */
+$catLabelMap = array(
+    'Stationary'     => 'Stationary Source',
+    'Mobile-OnRoad'  => 'Mobile Source — On-road vehicles',
+    'Mobile-OffRoad' => 'Mobile Source — Off-road vehicles/mobile equipment',
+    'Fugitive'       => 'Fugitive Emissions',
+    'Process'        => 'Process Emissions',
+    'Electricity'    => 'Electricity, grid mix',
+);
+function cfpEfGroupLabel($scope, $cat, $catLabelMap) {
+    $label = $catLabelMap[$cat] ?? ($cat ?: 'อื่นๆ');
+    return $scope . ' — ' . $label;
+}
+/* ลำดับกลุ่มให้ตรงกับ Emission Factor_2569.pdf (Stationary -> Mobile Off-road -> Mobile On-road -> ...)
+   ใช้เป็นคีย์ sort ที่ซ่อนไว้ให้ DataTables เรียงตามนี้แทนการเรียงตัวอักษร (ซึ่งจะเอา Mobile ขึ้นก่อน Stationary) */
+$catSortMap = array(
+    'Stationary' => 1, 'Mobile-OffRoad' => 2, 'Mobile-OnRoad' => 3,
+    'Fugitive' => 4, 'Process' => 5, 'Electricity' => 6,
+);
+$scopeSortMap = array('Scope1' => 1, 'Scope2' => 2, 'Scope3' => 3);
+function cfpEfGroupSort($scope, $cat, $scopeSortMap, $catSortMap) {
+    $sw = $scopeSortMap[$scope] ?? 9;
+    $cw = $catSortMap[$cat] ?? 99;
+    return $sw * 100 + $cw;
+}
+/* ตัดคำซ้ำกับหัวข้อกลุ่ม (Stationary/On-road/Off-road) ออกจากชื่อ EF ตอนแสดงผล
+   เพราะกลุ่มด้านบนบอกอยู่แล้ว ไม่ต้องพูดซ้ำในชื่อรายการ */
+function cfpEfDisplayName($name) {
+    $name = preg_replace('/\s*\((Off-road|On-road|Stationary)\)\s*/i', ' ', $name);
+    return trim(preg_replace('/\s+/', ' ', $name));
+}
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -80,6 +132,7 @@ $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+  <link href="https://cdn.datatables.net/rowgroup/1.4.1/css/rowGroup.dataTables.min.css" rel="stylesheet">
   <link href="../assets/css/cfp-theme.css?v=<?php echo filemtime('../assets/css/cfp-theme.css'); ?>" rel="stylesheet">
   <style>
     body { font-family:'Prompt',sans-serif; }
@@ -87,6 +140,26 @@ $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>
     .kpi-icon-box { width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0; }
     .btn-action { width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;font-size:0.8rem; }
     .status-dot { width:8px;height:8px;border-radius:50%;display:inline-block; }
+    /* หัวกลุ่ม — ตั้งใจให้ต่างจาก ef_link.php เล็กน้อย (accent ซ้ายแทนบน + badge สีทึบ)
+       กันดูซ้ำกันเกินไปทั้งที่เป็นคนละหน้าที่ใช้งาน */
+    tr.dtrg-group td { padding:6px 0 !important; border-top:none !important; background:transparent !important; }
+    .ef-group-banner {
+      display:flex; align-items:center; gap:10px; padding:9px 14px;
+      border-left:4px solid var(--grp-color, #2AABB8);
+      border-radius:8px;
+      background:var(--cfp-bg,#F3F8F9);
+    }
+    .ef-group-banner .ic {
+      width:24px; height:24px; border-radius:50%; flex-shrink:0;
+      background:#fff; color:var(--grp-color, #2AABB8); border:1.5px solid var(--grp-color, #2AABB8);
+      display:flex; align-items:center; justify-content:center; font-size:0.72rem;
+    }
+    .ef-group-banner b { font-size:0.86rem; color:var(--cfp-text); font-weight:600; }
+    .ef-group-banner .cnt {
+      margin-left:auto; font-size:0.68rem; font-weight:700; color:#fff;
+      background:var(--grp-color, #2AABB8); padding:2px 10px; border-radius:20px;
+      white-space:nowrap;
+    }
     .scope-badge { display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:600;color:#fff; }
     .gas-badge { display:inline-block;padding:1px 7px;border-radius:8px;font-size:0.7rem;font-weight:600;color:#fff; }
     .ef-value { font-family:monospace;font-size:0.85rem;font-weight:600;color:var(--cfp-primary); }
@@ -179,7 +252,9 @@ $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>
           </div>
           <div class="cfp-page-toolbar-actions">
             <?php
-            $resUnlink = sqlsrv_query($conn, "SELECT COUNT(*) AS Cnt FROM CFP_EFValue WHERE RefID IS NULL AND IsActive=1");
+            $resUnlink = sqlsrv_query($conn, "
+                SELECT COUNT(*) AS Cnt FROM CFP_EFValue e
+                WHERE e.IsActive=1 AND NOT EXISTS (SELECT 1 FROM CFP_ActivityItem ai WHERE ai.EFID = e.EFID)");
             $unlinkCnt = 0;
             if ($resUnlink) { $rU = sqlsrv_fetch_array($resUnlink, SQLSRV_FETCH_ASSOC); $unlinkCnt = (int)($rU['Cnt'] ?? 0); }
             ?>
@@ -200,12 +275,14 @@ $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>
         </div>
 
         <!-- Table -->
-        <div class="table-responsive">
+        <div class="table-responsive" id="tblEF-wrap">
           <table id="tblEF" class="table table-bordered table-hover align-middle" style="width:100%;font-size:0.82rem;">
             <thead>
               <tr>
                 <th class="cfp-th-expand"></th>
                 <th class="cfp-th-num" style="width:32px;">#</th>
+                <th class="d-none">กลุ่ม</th>
+                <th class="d-none">ลำดับกลุ่ม</th>
                 <th style="min-width:280px;">ชื่อ EF / รายการ</th>
                 <th class="cfp-col-hide text-center" style="width:56px;">Scope</th>
                 <th class="cfp-col-hide text-center" style="width:60px;">Gas</th>
@@ -214,26 +291,33 @@ $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>
                 <th class="cfp-col-hide text-center" style="width:56px;">ปี</th>
                 <th class="cfp-col-hide text-center" style="width:100px;">แหล่งอ้างอิง</th>
                 <th style="width:72px;" class="text-center">สถานะ</th>
-                <th class="cfp-col-hide text-center" style="width:80px;">จัดการ</th>
+                <th class="cfp-col-hide text-center" style="width:110px;white-space:nowrap;">จัดการ</th>
               </tr>
             </thead>
             <tbody>
               <?php foreach ($rows as $i => $r) {
                 $sColor = $scopeColors[$r['Scope']] ?? '#999';
                 $gColor = $gasColors[$r['GasType']] ?? '#888';
+                $groupLabel = cfpEfGroupLabel($r['Scope'] ?? '', $r['Category'] ?? '', $catLabelMap);
+                $groupSort  = cfpEfGroupSort($r['Scope'] ?? '', $r['Category'] ?? '', $scopeSortMap, $catSortMap);
               ?>
               <tr data-status="<?php echo $r['IsActive']?'1':'0'; ?>"
                   data-scope="<?php echo htmlspecialchars($r['Scope']??''); ?>"
+                  data-category="<?php echo htmlspecialchars($r['Category']??''); ?>"
                   data-year="<?php echo $r['YearApply']??''; ?>"
                   data-source="<?php echo $r['SourceID']??''; ?>">
                 <td class="cfp-td-expand text-center" style="padding:4px;width:32px;"></td>
                 <td class="cfp-td-num"><?php echo $i+1; ?></td>
+                <td class="d-none"><?php echo htmlspecialchars($groupLabel); ?></td>
+                <td class="d-none"><?php echo (int)$groupSort; ?></td>
                 <td>
-                  <div style="font-weight:500;"><?php echo htmlspecialchars($r['EFName']); ?></div>
-                  <code style="font-size:0.7rem;color:var(--cfp-text-muted);"><?php echo htmlspecialchars($r['EFCode']); ?></code>
-                  <?php if (!empty($r['ItemName'])) { ?>
-                  <div style="font-size:0.7rem;color:var(--cfp-text-muted);">
-                    <i class="bi bi-link me-1"></i><?php echo htmlspecialchars($r['ItemName']); ?>
+                  <div style="font-weight:500;"><?php echo htmlspecialchars(cfpEfDisplayName($r['EFName'])); ?></div>
+                  <?php if (!empty($r['LinkedItemNames'])) { ?>
+                  <div style="font-size:0.7rem;color:var(--cfp-text-muted);" title="<?php echo htmlspecialchars($r['LinkedItemNames']); ?>">
+                    <i class="bi bi-link me-1"></i><?php echo htmlspecialchars($r['LinkedItemNames']); ?>
+                    <?php if ((int)($r['LinkedItemCount'] ?? 0) > 1) { ?>
+                    <span style="font-weight:600;">(<?php echo (int)$r['LinkedItemCount']; ?> รายการ)</span>
+                    <?php } ?>
                   </div>
                   <?php } ?>
                 </td>
@@ -296,7 +380,7 @@ $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>
                   }
                   ?>
                 </td>
-                <td class="cfp-col-hide text-center">
+                <td class="cfp-col-hide text-center" style="white-space:nowrap;">
                   <div class="cfp-action-group">
                     <button class="btn btn-outline-primary btn-action me-1 cfp-act-primary"
                             onclick="openModal(<?php echo (int)$r['EFID']; ?>)" title="แก้ไข">
@@ -437,28 +521,16 @@ $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>
                      maxlength="300" required placeholder="เช่น Diesel Combustion CO2">
             </div>
 
-            <!-- ผูกกับ ActivityItem -->
+            <!-- ผูกกับ ActivityItem — อ่านอย่างเดียว จัดการจริงที่หน้า ef_link.php (ผูกได้หลาย Item ต่อ EF) -->
             <div class="col-12">
               <label class="form-label">ผูกกับรายการกิจกรรม (Activity Item)</label>
-              <select class="form-select font-prompt" name="RefID" id="fRefID" style="font-size:0.8rem;">
-                <option value="">— ไม่ผูก —</option>
-                <?php
-                $curGroup = '';
-                foreach ($actItems as $a) {
-                    $groupKey   = 'Scope '.$a['ScopeNo'].($a['CategoryNo'] ? ' — Cat '.$a['CategoryNo'] : '');
-                    $groupLabel = 'S'.$a['ScopeNo'].($a['CategoryNo'] ? 'C'.$a['CategoryNo'] : '');
-                    if ($groupKey !== $curGroup) {
-                        if ($curGroup !== '') { echo '</optgroup>'; }
-                        echo '<optgroup label="'.$groupLabel.'">';
-                        $curGroup = $groupKey;
-                    }
-                    $scopeVal = 'Scope'.$a['ScopeNo'];
-                    echo '<option value="'.$a['ItemID'].'" data-scope="'.$scopeVal.'">'.htmlspecialchars($a['ItemName']).'</option>';
-                }
-                if ($curGroup !== '') { echo '</optgroup>'; }
-                ?>
-              </select>
-              <div class="form-text">เลือกเพื่อให้ระบบดึง EF นี้มาคำนวณ CO2e อัตโนมัติ</div>
+              <div id="fLinkedItemsDisplay" class="form-control font-prompt" style="font-size:0.8rem;background:#F9FAFB;min-height:38px;display:flex;align-items:center;">
+                —
+              </div>
+              <div class="form-text">
+                จัดการการผูก/ยกเลิกผูกได้ที่หน้า <a href="ef_link.php" target="_blank">ผูก EF กับ Activity Item</a>
+                (1 EF ผูกได้หลาย Item พร้อมกัน)
+              </div>
             </div>
 
             <!-- ค่า EF -->
@@ -495,6 +567,26 @@ $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>
               <label class="form-label">ใช้ได้ถึงวันที่</label>
               <input type="date" class="form-control font-prompt" name="ValidUntil" id="fValidUntil">
               <div class="form-text">ถ้าไม่ระบุ = ไม่มีวันหมดอายุ</div>
+            </div>
+
+            <!-- วันที่เริ่มใช้ -->
+            <div class="col-md-4">
+              <label class="form-label">วันที่เริ่มใช้</label>
+              <input type="date" class="form-control font-prompt" name="EffectiveDate" id="fEffectiveDate">
+              <div class="form-text">ถ้าไม่ระบุ = วันที่บันทึก</div>
+            </div>
+
+            <!-- หมวด (Category) -->
+            <div class="col-md-4">
+              <label class="form-label form-required">หมวด</label>
+              <select class="form-select font-prompt" name="Category" id="fCategory" required>
+                <?php foreach ($catLabelMap as $catKey => $catLabel) { ?>
+                <option value="<?php echo htmlspecialchars($catKey); ?>">
+                  <?php echo htmlspecialchars($catLabel); ?>
+                </option>
+                <?php } ?>
+              </select>
+              <div class="form-text">ใช้จัดกลุ่มแสดงผลในตาราง</div>
             </div>
 
             <!-- แหล่งอ้างอิง -->
@@ -555,6 +647,7 @@ $gasColors   = array('CO2'=>'#3B82F6','CH4'=>'#EC4899','N2O'=>'#84CC16','HFCs'=>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/rowgroup/1.4.1/js/dataTables.rowGroup.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="../assets/js/cfp-table-mobile.js"></script>
 <script>
@@ -565,15 +658,18 @@ var efData = <?php
             'code'     => $r['EFCode'],
             'name'     => $r['EFName'],
             'scope'    => $r['Scope'] ?? '',
+            'category' => $r['Category'] ?? '',
             'gasType'  => $r['GasType'] ?? '',
             'value'    => (float)$r['EFValue'],
             'gwp'      => (float)$r['GWP'],
             'unit'     => $r['Unit'] ?? '',
             'year'     => (int)($r['YearApply'] ?? 0),
             'sourceID'   => (int)($r['SourceID'] ?? 0),
-            'refID'      => (int)($r['RefID'] ?? 0),
+            'linkedItemNames' => $r['LinkedItemNames'] ?? '',
+            'linkedItemCount' => (int)($r['LinkedItemCount'] ?? 0),
             'active'     => (int)$r['IsActive'],
-            'validUntil' => $r['ValidUntil'] instanceof DateTime ? $r['ValidUntil']->format('Y-m-d') : ($r['ValidUntil'] ?? ''),
+            'validUntil'    => $r['ValidUntil'] instanceof DateTime ? $r['ValidUntil']->format('Y-m-d') : ($r['ValidUntil'] ?? ''),
+            'effectiveDate' => $r['EffectiveDate'] instanceof DateTime ? $r['EffectiveDate']->format('Y-m-d') : ($r['EffectiveDate'] ?? ''),
             'createdDate'=> $r['CreatedDate'] instanceof DateTime ? $r['CreatedDate']->format('Y-m-d H:i') : '',
             'sourceCode' => $r['SourceCode'] ?? '',
         );
@@ -595,15 +691,39 @@ $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
     return true;
 });
 
+var CAT_ICON_MAP    = <?php echo json_encode($catIconMap); ?>;
+var SCOPE_COLOR_MAP = <?php echo json_encode($scopeColors); ?>;
+
 var tblApi;
 $(document).ready(function() {
     tblApi = $('#tblEF').DataTable({
         language: { url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/th.json' },
-        order: [[8,'desc'],[4,'asc'],[3,'asc']],
-        pageLength: 25,
-        columnDefs: [{ targets: 0, orderable: false, searchable: false }],
+        order: [[3,'asc'],[9,'desc'],[6,'asc']],
+        paging: false,
+        columnDefs: [
+            { targets: 0, orderable: false, searchable: false },
+            { targets: 2, visible: false },
+            { targets: 3, visible: false }
+        ],
+        rowGroup: {
+            dataSrc: 2,
+            startRender: function (rows, group) {
+                var firstNode = rows.nodes()[0];
+                var scope = firstNode ? firstNode.getAttribute('data-scope') : '';
+                var cat   = firstNode ? firstNode.getAttribute('data-category') : '';
+                var color = SCOPE_COLOR_MAP[scope] || '#2AABB8';
+                var icon  = CAT_ICON_MAP[cat] || 'bi-collection';
+                var colCount = document.querySelectorAll('#tblEF thead th').length;
+                return $('<tr class="dtrg-group"><td colspan="' + colCount + '">'
+                    + '<div class="ef-group-banner" style="--grp-color:' + color + ';">'
+                    + '<div class="ic"><i class="bi ' + icon + '"></i></div>'
+                    + '<b>' + $('<div>').text(group).html() + '</b>'
+                    + '<span class="cnt">' + rows.count() + ' รายการ</span>'
+                    + '</div></td></tr>');
+            }
+        },
         drawCallback: function () { cfpInitMobileExpand('tblEF'); },
-        dom: '<"row align-items-center mb-2"<"col-auto"l><"col">>rtip'
+        dom: '<"row align-items-center mb-2"<"col">>rtip'
     });
     $('#fltKeyword').on('keyup', function() { tblApi.search(this.value).draw(); });
     $('#fltScope,#fltYear,#fltSource,#fltStatus').on('change', function() { tblApi.draw(); });
@@ -670,20 +790,21 @@ function openModal(id) {
     document.getElementById('fScope').value      = '';
     document.getElementById('fGasType').value    = '';
     document.getElementById('fName').value       = '';
-    document.getElementById('fRefID').value      = '';
     document.getElementById('fValue').value      = '';
     document.getElementById('fGWP').value        = '1';
     document.getElementById('fUnit').value       = '';
     document.getElementById('fYear').value       = '';
     document.getElementById('fValidUntil').value = '';
+    document.getElementById('fEffectiveDate').value = '';
+    document.getElementById('fCategory').value   = 'Stationary';
     document.getElementById('fSourceID').value   = '';
     document.getElementById('fActive').value     = '1';
     document.getElementById('statusWrap').style.display = 'none';
+    document.getElementById('fLinkedItemsDisplay').textContent = '—';
 
     if (id === 0) {
         document.getElementById('modalTitle').innerHTML =
             '<i class="bi bi-plus-circle me-2"></i>เพิ่มค่า EF';
-        filterItemsByScope('');
     } else {
         var d = efData[id]; if (!d) { return; }
         document.getElementById('modalTitle').innerHTML =
@@ -694,38 +815,20 @@ function openModal(id) {
         document.getElementById('fScope').value       = d.scope;
         document.getElementById('fGasType').value     = d.gasType;
         document.getElementById('fName').value        = d.name;
-        filterItemsByScope(d.scope);
-        document.getElementById('fRefID').value       = d.refID || '';
         document.getElementById('fValue').value       = d.value;
         document.getElementById('fGWP').value         = d.gwp;
         document.getElementById('fUnit').value        = d.unit;
         document.getElementById('fYear').value        = d.year || '';
         document.getElementById('fValidUntil').value  = d.validUntil || '';
+        document.getElementById('fEffectiveDate').value = d.effectiveDate || '';
+        document.getElementById('fCategory').value    = d.category || 'Stationary';
         document.getElementById('fSourceID').value    = d.sourceID || '';
         document.getElementById('fActive').value      = d.active;
+        document.getElementById('fLinkedItemsDisplay').textContent =
+            d.linkedItemCount > 0 ? (d.linkedItemCount + ' รายการ: ' + d.linkedItemNames) : '— ยังไม่มี Item ผูก —';
         document.getElementById('statusWrap').style.display = '';
     }
     new bootstrap.Modal(document.getElementById('modalEF')).show();
-}
-
-document.getElementById('fScope').addEventListener('change', function() {
-    filterItemsByScope(this.value);
-});
-
-function filterItemsByScope(scope) {
-    var sel = document.getElementById('fRefID');
-    var groups = sel.querySelectorAll('optgroup');
-    groups.forEach(function(grp) {
-        var hasVisible = false;
-        grp.querySelectorAll('option').forEach(function(opt) {
-            var hide = scope ? (opt.dataset.scope !== scope) : false;
-            opt.hidden = hide;
-            if (!hide) { hasVisible = true; }
-        });
-        grp.hidden = !hasVisible;
-    });
-    var cur = sel.options[sel.selectedIndex];
-    if (cur && cur.value && cur.hidden) { sel.value = ''; }
 }
 
 function confirmToggle(id, cur, name) {

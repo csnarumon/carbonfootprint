@@ -17,9 +17,11 @@ $roleNames   = array(
     6 => 'Viewer',
 );
 
-/* ── สิทธิ์ Scope ของ Data Entry (roleID 1) — Admin/SustainAdmin เห็นทุก Scope เสมอ ── */
+/* ── สิทธิ์ Scope ของ Data Entry (roleID 1) — Admin/SustainAdmin เห็นทุก Scope เสมอ
+   และตอน Admin Elevate เป็น Data Entry ก็เห็นทุก Scope เช่นกัน (Elevate ให้สิทธิ์ Role
+   สำหรับทดสอบ ไม่ได้ผูก CFP_UserScopeAccess ของ Admin จริงไว้) ── */
 $allowedScopes = array(1 => true, 2 => true, 3 => true);
-if ($roleID === 1 && isset($conn)) {
+if ($roleID === 1 && isset($conn) && !isElevating()) {
     $userID = getEffectiveUserID();
     $allowedScopes = array();
     $resMyScope = sqlsrv_query($conn,
@@ -164,7 +166,7 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
 }
 </style>
 
-<nav class="cfp-sidebar theme-card" id="cfpSidebar">
+<nav class="cfp-sidebar theme-card" id="cfpSidebar" style="visibility:hidden;">
 
     <!-- Brand -->
     <a href="/carbonfootprint/dashboard/index.php"
@@ -361,6 +363,12 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
      scroll restore/save จัดการโดย app.php (shell) เพื่อป้องกัน race condition
      ============================================================ -->
 <script>
+/* กัน sidebar ค้างซ่อนถาวรถ้า error เกิดก่อนถึงจุด reveal ด้านล่าง */
+setTimeout(function () {
+    var s = document.getElementById('cfpSidebar');
+    if (s && s.style.visibility === 'hidden') { s.style.visibility = 'visible'; }
+}, 500);
+
 (function () {
     /* แยก state ตาม role กันไม่ให้ผลของ role นึงมาทับ default ของอีก role (เช่น Admin ต้องย่อ แต่ role อื่นขยาย) */
     var STATE_KEY = 'cfp_sidebar_menu_state_role<?php echo (int)$roleID; ?>';
@@ -403,6 +411,11 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
             if (activeBody) { activeBody.classList.add('show'); }
         }
     }
+
+    /* ── 1c. state (เปิด/ปิดหมวด) กำหนดครบแล้ว — ค่อยแสดง sidebar
+       กัน animation เปิดหมวดให้เห็นตอนโหลดหน้า (เต้น) ── */
+    var sidebarEl = document.getElementById('cfpSidebar');
+    if (sidebarEl) { sidebarEl.style.visibility = 'visible'; }
 
     /* ── 2. บันทึก menu state ── */
     function saveMenuState() {

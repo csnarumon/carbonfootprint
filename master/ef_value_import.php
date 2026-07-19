@@ -90,11 +90,13 @@ while ($r = sqlsrv_fetch_array($resItem, SQLSRV_FETCH_ASSOC)) {
     $itemLookup[strtoupper(trim($r['ItemCode']))] = (int)$r['ItemID'];
 }
 
-/* EFName ที่มีอยู่แล้ว (เช็คซ้ำด้วย EFName + YearApply + Scope) */
+/* EFName ที่มีอยู่แล้ว (เช็คซ้ำด้วย EFName + YearApply + Scope + Category
+   ต้องรวม Category ด้วย เพราะชื่อเดียวกันอาจใช้ซ้ำได้คนละหมวด เช่น
+   "Diesel B7: Report in Scope 1" มีทั้ง Stationary/On-road/Off-road) */
 $existingKeys = array();
-$resEx = sqlsrv_query($conn, "SELECT EFName, YearApply, Scope FROM CFP_EFValue");
+$resEx = sqlsrv_query($conn, "SELECT EFName, YearApply, Scope, Category FROM CFP_EFValue");
 while ($r = sqlsrv_fetch_array($resEx, SQLSRV_FETCH_ASSOC)) {
-    $key = strtolower(trim($r['EFName'])) . '|' . $r['YearApply'] . '|' . $r['Scope'];
+    $key = strtolower(trim($r['EFName'])) . '|' . $r['YearApply'] . '|' . $r['Scope'] . '|' . strtolower(trim($r['Category'] ?? ''));
     $existingKeys[$key] = true;
 }
 
@@ -155,7 +157,7 @@ foreach ($rows as $row) {
     }
 
     /* ===== เช็คซ้ำ ===== */
-    $dupKey = strtolower(trim($efName)) . '|' . (int)$yearApply . '|' . $scope;
+    $dupKey = strtolower(trim($efName)) . '|' . (int)$yearApply . '|' . $scope . '|' . strtolower(trim($category));
     if (isset($existingKeys[$dupKey]) || isset($seenInFile[$dupKey])) {
         $skipCount++;
         continue;
@@ -171,14 +173,11 @@ foreach ($rows as $row) {
         }
     }
 
-    /* ===== Lookup RefID ===== */
-    $refID    = null;
-    $refTable = null;
+    /* ===== Lookup Item ที่จะผูก (ถ้าระบุ RefItemCode) ===== */
+    $itemID = null;
     if ($refCode !== '') {
-        $refID = $itemLookup[strtoupper(trim($refCode))] ?? null;
-        if ($refID !== null) {
-            $refTable = 'CFP_ActivityItem';
-        } else {
+        $itemID = $itemLookup[strtoupper(trim($refCode))] ?? null;
+        if ($itemID === null) {
             $errors[] = 'แถวที่ ' . $rowNum . ' (' . $efName . '): ไม่พบ RefItemCode "' . $refCode . '" — บันทึกโดยไม่ผูก Activity';
         }
     }
@@ -186,12 +185,12 @@ foreach ($rows as $row) {
     /* ===== Generate EFCode ===== */
     $code = generateEFCode($conn, $scope);
 
-    /* ===== Insert ===== */
+    /* ===== Insert (ไม่มี RefID/RefTable อีกต่อไป — ผูก Item ผ่าน CFP_ActivityItem.EFID แทน) ===== */
     $sql = "INSERT INTO CFP_EFValue
             (EFCode, EFName, EFValue, GWP, Unit, Scope, GasType,
-             Category, YearApply, SourceID, RefID, RefTable,
+             Category, YearApply, SourceID,
              IsActive, CreatedBy, CreatedDate)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?,GETDATE())";
+            VALUES (?,?,?,?,?,?,?,?,?,?,1,?,GETDATE())";
     $r = sqlsrv_query($conn, $sql, array(
         $code,
         trim($efName),
@@ -203,8 +202,6 @@ foreach ($rows as $row) {
         ($category !== '' ? $category : null),
         (int)$yearApply,
         $sourceID,
-        $refID,
-        $refTable,
         (int)$_SESSION['user_id']
     ));
 
@@ -215,7 +212,7 @@ foreach ($rows as $row) {
             $code, trim($efName), (float)$efValue, (float)$gwp,
             ($unit !== '' ? $unit : null), $scope, $gasType,
             ($category !== '' ? $category : null), (int)$yearApply,
-            $sourceID, $refID, $refTable, (int)$_SESSION['user_id']
+            $sourceID, (int)$_SESSION['user_id']
         ));
     }
 
@@ -223,6 +220,16 @@ foreach ($rows as $row) {
         $failCount++;
         $errors[] = 'แถวที่ ' . $rowNum . ' (' . $efName . '): บันทึกไม่สำเร็จ';
         continue;
+    }
+
+    /* ผูก Item เข้ากับ EF ที่เพิ่ง insert (many-to-one: เขียนทับ EFID เดิมของ Item ถ้ามี) */
+    if ($itemID !== null) {
+        $resIdent = sqlsrv_query($conn, "SELECT @@IDENTITY AS NewID");
+        $rowIdent = $resIdent ? sqlsrv_fetch_array($resIdent, SQLSRV_FETCH_ASSOC) : null;
+        $newEFID  = $rowIdent ? (int)$rowIdent['NewID'] : 0;
+        if ($newEFID > 0) {
+            sqlsrv_query($conn, "UPDATE CFP_ActivityItem SET EFID=? WHERE ItemID=?", array($newEFID, $itemID));
+        }
     }
 
     $seenInFile[$dupKey] = true;

@@ -181,7 +181,7 @@ body { font-family:'Prompt',sans-serif; }
 .mc-ico-none { color:#D1D5DB; font-size:15px; }
 .mc-ico-closed { color:var(--cfp-primary); font-size:15px; }
 .mc-tag      { display:inline-block; padding:1px 8px; border-radius:20px; font-size:10px; font-weight:600; }
-.mc-tag.ok   { background:#E0F4F7; color:#1B7A8A; }
+.mc-tag.ok   { background:#E8F5E9; color:#2E7D32; }
 .mc-tag.wait { background:#FEF3C7; color:#92400E; }
 .mc-tag.pend { background:#FEE2E2; color:#B91C1C; }
 .mc-tag.closed { background:#E8F5E9; color:#2E7D32; }
