@@ -1,7 +1,7 @@
 <?php
 /* ==============================================
    master/scope3category.php
-   ตั้งค่า Category Scope 3 ที่องค์กรใช้งาน — Admin (4), SustainAdmin (5)
+   ตั้งค่า Category (Scope 3) ที่องค์กรใช้งาน — Admin (4), SustainAdmin (5)
    Category ทั้ง 15 เป็น fixed list (GHG Protocol) ไม่ผูกกับตาราง master ใดๆ
    ตารางนี้เก็บแค่ CategoryNo ที่ถูก "ปิดใช้งาน" เท่านั้น
    ============================================== */
@@ -22,7 +22,7 @@ if (!empty($_SESSION['toast'])) {
     unset($_SESSION['toast']);
 }
 
-/* ===== Category Scope 3 ทั้ง 15 ตัว (fixed list ตาม GHG Protocol) ===== */
+/* ===== Category (Scope 3) ทั้ง 15 ตัว (fixed list ตาม GHG Protocol) ===== */
 $scope3Categories = array(
     1  => 'Cat.1 — สินค้าและบริการที่จัดซื้อ (Purchased goods & services)',
     2  => 'Cat.2 — สินทรัพย์ทุน (Capital goods)',
@@ -57,7 +57,7 @@ $disabled = count($disabledMap);
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Category Scope 3 — ระบบบริหารจัดการคาร์บอนองค์กร</title>
+  <title>Category (Scope 3) — GHG Management System</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -94,7 +94,7 @@ $disabled = count($disabledMap);
   <div class="cfp-main">
 
     <?php
-    $pageTitle = 'Category Scope 3';
+    $pageTitle = 'Category (Scope 3)';
     $pageIcon  = 'list-check';
     include '../includes/topbar.php';
     ?>
@@ -105,10 +105,10 @@ $disabled = count($disabledMap);
       <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
         <div>
           <h5 class="mb-0 fw-600" style="color:var(--cfp-primary);">
-            <i class="bi bi-list-check me-2" style="color:var(--cfp-green);"></i>ตั้งค่า Category Scope 3
+            <i class="bi bi-list-check me-2" style="color:var(--cfp-green);"></i>ตั้งค่า Category (Scope 3)
           </h5>
           <div style="font-size:0.78rem;color:var(--cfp-text-muted);margin-top:2px;">
-            การตั้งค่าข้อมูลพื้นฐาน › Category Scope 3
+            การตั้งค่าข้อมูลพื้นฐาน › Category (Scope 3)
           </div>
         </div>
       </div>
@@ -159,7 +159,7 @@ $disabled = count($disabledMap);
       <!-- ===== LIST CARD ===== -->
       <div class="cfp-card">
         <div style="font-size:0.92rem;font-weight:600;color:var(--cfp-primary);margin-bottom:4px;">
-          <i class="bi bi-list-check me-2"></i>รายการ Category Scope 3 (15 หมวดตาม GHG Protocol)
+          <i class="bi bi-list-check me-2"></i>รายการ Category (Scope 3)
         </div>
         <div style="font-size:0.78rem;color:var(--cfp-text-muted);margin-bottom:10px;">
           ปิดใช้งาน Category ที่องค์กรไม่มีข้อมูล — จะไม่แสดงให้เลือกในหน้ากำหนดสิทธิ์ Scope ของ user

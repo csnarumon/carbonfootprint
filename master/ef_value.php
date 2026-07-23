@@ -127,7 +127,7 @@ function cfpEfDisplayName($name) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ค่า Emission Factor — ระบบบริหารจัดการคาร์บอนองค์กร</title>
+  <title>ค่า Emission Factor — GHG Management System</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
@@ -141,8 +141,10 @@ function cfpEfDisplayName($name) {
     .btn-action { width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;font-size:0.8rem; }
     .status-dot { width:8px;height:8px;border-radius:50%;display:inline-block; }
     /* หัวกลุ่ม — ตั้งใจให้ต่างจาก ef_link.php เล็กน้อย (accent ซ้ายแทนบน + badge สีทึบ)
-       กันดูซ้ำกันเกินไปทั้งที่เป็นคนละหน้าที่ใช้งาน */
-    tr.dtrg-group td { padding:6px 0 !important; border-top:none !important; background:transparent !important; }
+       กันดูซ้ำกันเกินไปทั้งที่เป็นคนละหน้าที่ใช้งาน
+       sticky ใต้ topbar (58px) เหมือน ef_link.php — ต้องใช้ background ทึบแทน transparent ตอน sticky
+       กันเนื้อหาแถวอื่นเลื่อนทะลุขึ้นมาซ้อนให้เห็น */
+    tr.dtrg-group td { padding:6px 0 !important; border-top:none !important; background:#fff !important; position:sticky; top:58px; z-index:20; }
     .ef-group-banner {
       display:flex; align-items:center; gap:10px; padding:9px 14px;
       border-left:4px solid var(--grp-color, #2AABB8);
@@ -275,7 +277,7 @@ function cfpEfDisplayName($name) {
         </div>
 
         <!-- Table -->
-        <div class="table-responsive" id="tblEF-wrap">
+        <div id="tblEF-wrap">
           <table id="tblEF" class="table table-bordered table-hover align-middle" style="width:100%;font-size:0.82rem;">
             <thead>
               <tr>

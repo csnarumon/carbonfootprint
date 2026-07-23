@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'detail'
 
     /* ── ดึง ActivityData รายการ (รวม AssetID/AssetType) ── */
     $resA = sqlsrv_query($conn,
-        "SELECT a.ActivityID, a.ActivityName, a.Category, a.Quantity, a.CO2e, a.Remark,
+        "SELECT a.ActivityID, a.ItemID, a.ActivityName, a.Category, a.Quantity, a.CO2e, a.Remark,
                 a.AssetID, a.AssetType, a.EvidenceFile, a.EvidenceFileName,
                 u.UnitName, i.ItemCode, i.Scope1Type, i.MobileRoadType
          FROM CFP_ActivityData a
@@ -119,6 +119,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'detail'
     $statusTH = $STATUS_TH[(int)$h['Status']] ?? '—';
     $scopeLbl = $SCOPE_LABEL[$h['Scope']] ?? $h['Scope'];
     $totalCO2 = array_sum(array_column($rows, 'CO2e'));
+
+    /* ── QA: ตรวจรายการซ้ำ — ItemID+AssetID เดียวกัน ถูกกรอกมากกว่า 1 แถวใน Header นี้
+       (นับเฉพาะแถวที่ผูกทรัพย์สินจริง — AssetID > 0 — เพราะแถวที่ไม่ผูกทรัพย์สิน "ซ้ำ" กันได้ตามปกติ เช่น Item เดียวกันคนละรายการค่าใช้จ่าย) ── */
+    $dupKeyCounts = array();
+    foreach ($rows as $r) {
+        $aid = (int)($r['AssetID'] ?? 0);
+        if ($aid <= 0) { continue; }
+        $key = (int)$r['ItemID'] . '|' . ($r['AssetType'] ?? '') . '|' . $aid;
+        $dupKeyCounts[$key] = ($dupKeyCounts[$key] ?? 0) + 1;
+    }
+    $dupKeys = array_keys(array_filter($dupKeyCounts, function($c) { return $c > 1; }));
+    $qaWarnings = array(); /* [key] => ['label'=>.., 'count'=>N] — 1 รายการต่อ key ซ้ำ */
+    if (!empty($dupKeys)) {
+        foreach ($rows as $r) {
+            $aid = (int)($r['AssetID'] ?? 0);
+            if ($aid <= 0) { continue; }
+            $key = (int)$r['ItemID'] . '|' . ($r['AssetType'] ?? '') . '|' . $aid;
+            if (in_array($key, $dupKeys, true) && !isset($qaWarnings[$key])) {
+                $at = $r['AssetType'] ?? '';
+                $assetLabel = isset($assetNameMap[$at][$aid]) ? $assetNameMap[$at][$aid] : ('#' . $aid);
+                $qaWarnings[$key] = array(
+                    'label' => htmlspecialchars(($r['ActivityName'] ?? $r['ItemCode'] ?? '—') . ' — ' . $assetLabel),
+                    'count' => $dupKeyCounts[$key],
+                );
+            }
+        }
+    }
 
     /* ── สร้าง HTML — จัดกลุ่มตาม Category (Option B: stat bar + group header ในตาราง) ── */
     $scopeFolder = strtolower($h['Scope']); /* Scope1 -> scope1 ตรงกับโฟลเดอร์จริงใน uploads/evidence/ */
@@ -235,8 +262,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'detail'
     //         . '</tr>';
     // }
 
+    $qaHtml = '';
+    if (!empty($qaWarnings)) {
+        $qaItemsHtml = '';
+        foreach ($qaWarnings as $w) {
+            $qaItemsHtml .= '<li>' . $w['label'] . ' <strong>— ซ้ำ ' . $w['count'] . ' แถว</strong></li>';
+        }
+        $qaHtml = '<div style="background:#FFF7ED;border:1px solid #FDBA74;border-left:4px solid #EA580C;border-radius:8px;padding:10px 16px;margin-bottom:14px;">'
+            . '<div style="font-size:0.82rem;font-weight:600;color:#9A3412;margin-bottom:4px;"><i class="bi bi-exclamation-triangle-fill me-1"></i>QA: พบรายการที่อาจกรอกซ้ำ (' . count($qaWarnings) . ' รายการ)</div>'
+            . '<ul style="margin:0;padding-left:20px;font-size:0.78rem;color:#7C2D12;">' . $qaItemsHtml . '</ul>'
+            . '<div style="font-size:0.72rem;color:#9A3412;margin-top:4px;">รายการเดียวกัน + ทรัพย์สินเดียวกัน ถูกกรอกมากกว่า 1 แถวในชุดข้อมูลนี้ — โปรดตรวจสอบก่อนอนุมัติว่าไม่ได้นับซ้ำโดยไม่ตั้งใจ</div>'
+            . '</div>';
+    }
+
     $html = '
     <div style="font-family:\'Prompt\',sans-serif;">
+      ' . $qaHtml . '
       <table class="table table-bordered table-sm mb-3" style="font-size:0.82rem;">
         <tr><th style="width:130px;background:#EEF6F8;color:#1A3A44;">Scope</th><td>' . htmlspecialchars($scopeLbl) . '</td></tr>
         <tr><th style="background:#EEF6F8;color:#1A3A44;">Site</th><td>' . htmlspecialchars($h['SiteName'] ?? '—') . '</td></tr>

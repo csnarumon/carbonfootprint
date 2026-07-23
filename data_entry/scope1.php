@@ -282,6 +282,32 @@ $hdrStatus = -1; /* -1 = ยังไม่มี Header */
         }
     }
 
+    /* ── QA: รายชื่อ Item ที่เดือนก่อนกรอกไว้ (Quantity IS NOT NULL) แต่เดือนนี้ยังไม่มีข้อมูล
+       ใช้เตือนก่อน Submit เผื่อลืมกรอกต่อจากเดือนก่อน (ไม่บล็อก แค่เตือน) ── */
+    $lastMonthFilledItemIDs = array();
+    if (!empty($items) && $filterSite) {
+        $prevTs = mktime(0, 0, 0, $filterMonth - 1, 1, $filterYear);
+        $prevYM = date('Ym', $prevTs);
+        $resPrev = sqlsrv_query($conn,
+            "SELECT DISTINCT a.ItemID
+             FROM CFP_ActivityData a
+             JOIN CFP_MonthlyHeader h ON h.HeaderID = a.HeaderID
+             WHERE h.SiteID=? AND h.YearMonth=? AND h.Scope=? AND a.IsActive=1 AND a.Quantity IS NOT NULL",
+            array($filterSite, $prevYM, $SCOPE_STR));
+        if ($resPrev) {
+            while ($rP = sqlsrv_fetch_array($resPrev, SQLSRV_FETCH_ASSOC)) {
+                $lastMonthFilledItemIDs[] = (int)$rP['ItemID'];
+            }
+        }
+    }
+    /* สร้าง map ชื่อไว้ตั้งแต่ตรงนี้ (ก่อน include sidebar.php ที่ใช้ตัวแปรชื่อ $items ซ้ำจนทับของเดิม) */
+    $lastMonthFilledNames = array();
+    foreach ($items as $it) {
+        if (in_array((int)$it['ItemID'], $lastMonthFilledItemIDs, true)) {
+            $lastMonthFilledNames[(int)$it['ItemID']] = $it['ItemName'];
+        }
+    }
+
 
 /* ===== จัดกลุ่มตาม category =====
    หมายเหตุ (Bug fix): รายการ Scope 1 ใช้ฟิลด์ Scope1Type (string) เป็นตัวแยกประเภทจริง
@@ -346,7 +372,7 @@ if (!empty($_SESSION['toast_msg'])) {
 <!DOCTYPE html><html lang="th"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>บันทึกข้อมูล Scope 1 — ระบบบริหารจัดการคาร์บอนองค์กร</title>
+<title>บันทึกข้อมูล Scope 1 — GHG Management System</title>
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
@@ -452,6 +478,8 @@ body { font-family:'Prompt',sans-serif; }
     font-size:0.78rem; color:var(--cfp-text); background:#fff; font-family:'Prompt',sans-serif; }
 .asset-select:disabled { background:var(--cfp-bg); color:var(--cfp-text-muted); cursor:not-allowed; }
 .asset-select.selected { border-color:var(--cfp-primary); }
+.asset-select.asset-dup { border-color:#E05050; background:#FEF2F2; }
+.asset-dup-warn { font-size:0.68rem; color:#B91C1C; margin-top:3px; font-weight:500; }
 
 /* ── Attach link ── */
 .attach-link { font-size:0.72rem; color:var(--cfp-primary); display:inline-flex; align-items:center; gap:2px; text-decoration:none; cursor:pointer; }
@@ -808,7 +836,7 @@ body { font-family:'Prompt',sans-serif; }
                 <td>
                   <select class="asset-select<?php echo $savedAssetID ? ' selected' : ''; ?>" id="asset_<?php echo $rowKey; ?>"
                           <?php echo $itemInputDisabled; ?>
-                          onchange="this.classList.toggle('selected',this.value!='')<?php echo $catNo===3 ? ";calcFugitiveCO2('{$rowKey}')" : ''; ?>">
+                          onchange="this.classList.toggle('selected',this.value!='');checkDupAssetInItem()<?php echo $catNo===3 ? ";calcFugitiveCO2('{$rowKey}')" : ''; ?>">
                     <option value="">— เลือกทรัพย์สิน —</option>
                     <?php foreach ($catAssets as $a) { ?>
                     <option value="<?php echo $a['AssetID']; ?>" data-type="<?php echo $a['AssetType']; ?>"
@@ -1089,6 +1117,8 @@ var YM          = <?php echo json_encode($filterYM); ?>;
 var CAN_EDIT    = <?php echo $canEdit ? 'true' : 'false'; ?>;
 var TOTAL_ITEMS = <?php echo $totalItems; ?>;
 var HDR_STATUS  = <?php echo $hdrStatus; ?>;
+/* Item ที่เดือนก่อนกรอกไว้แต่เดือนนี้อาจยังไม่ได้กรอก — ใช้เตือนก่อน Submit */
+var LAST_MONTH_FILLED = <?php echo json_encode($lastMonthFilledNames, JSON_UNESCAPED_UNICODE); ?>;
 
 /* ── ค่า EF map จาก PHP ── */
 var EF_MAP = <?php
@@ -1296,9 +1326,43 @@ function removeAssetRow(rowKey) {
             if (did > 0) { window.scope1DeletedIds.push(did); }
             tr.remove();
             updateProgress();
+            checkDupAssetInItem();
         }
     });
 }
+
+/* ── QA: เตือนตอนคีย์ข้อมูล ถ้าเลือกทรัพย์สินเดียวกันซ้ำกันมากกว่า 1 แถว
+   เช็ค "ทั้งหน้า" ไม่ใช่แค่ในแถวของ Item เดียวกัน — เพราะทรัพย์สินจริง 1 ตัว (เช่น รถ 1 คัน)
+   ไม่ควรถูกผูกกับ Item คนละประเภทพร้อมกัน (เช่น เป็นทั้ง "รถ forklift" และ "รถบรรทุก 6 ล้อ")
+   กันนับซ้ำโดยไม่ตั้งใจ ก่อนที่จะไปโผล่เป็น QA flag ตอน Reviewer/Approver เปิดดูภายหลัง ── */
+function checkDupAssetInItem() {
+    var selects = document.querySelectorAll('.asset-select');
+    var counts = {};
+    selects.forEach(function(sel) {
+        if (!sel.value) { return; }
+        counts[sel.value] = (counts[sel.value] || 0) + 1;
+    });
+    selects.forEach(function(sel) {
+        var isDup = sel.value && counts[sel.value] > 1;
+        sel.classList.toggle('asset-dup', isDup);
+        var warnEl = sel.parentElement.querySelector('.asset-dup-warn');
+        if (isDup) {
+            if (!warnEl) {
+                warnEl = document.createElement('div');
+                warnEl.className = 'asset-dup-warn';
+                warnEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i>เลือกทรัพย์สินซ้ำกับแถวอื่น';
+                sel.parentElement.appendChild(warnEl);
+            }
+        } else if (warnEl) {
+            warnEl.remove();
+        }
+    });
+}
+
+/* ตรวจซ้ำทั้งหน้าตอนโหลด (เผื่อมีข้อมูลเก่าที่ซ้ำอยู่แล้วก่อนหน้านี้) */
+document.addEventListener('DOMContentLoaded', function() {
+    checkDupAssetInItem();
+});
 
 /* ── save draft ── */
 /* ── Lock กัน race condition: ห้ามกด บันทึกร่าง/ส่งอนุมัติ ซ้อนกันจนกว่า request แรกจะเสร็จ
@@ -1338,6 +1402,17 @@ function saveDraft() {
 }
 
 /* ── confirm submit ── */
+/* QA: หา Item ที่เดือนก่อนกรอกไว้ แต่เดือนนี้ยังไม่มีในรายการที่กำลังจะส่ง */
+function findMissingFromLastMonth(rows) {
+    var filledIDs = {};
+    rows.forEach(function(r) { filledIDs[r.ItemID] = true; });
+    var missing = [];
+    for (var iid in LAST_MONTH_FILLED) {
+        if (!filledIDs[iid]) { missing.push(LAST_MONTH_FILLED[iid]); }
+    }
+    return missing;
+}
+
 function confirmSubmit() {
     if (isSavingScope1) { return; }
     var rows = collectData();
@@ -1345,6 +1420,29 @@ function confirmSubmit() {
         Swal.fire({ icon:'warning', title:'กรุณากรอกข้อมูลก่อนส่ง', confirmButtonText:'ตกลง', confirmButtonColor:'#2AABB8', customClass:{popup:'font-prompt'} });
         return;
     }
+    var missing = findMissingFromLastMonth(rows);
+    if (missing.length) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'มีรายการที่เดือนก่อนเคยกรอก แต่เดือนนี้ยังว่าง',
+            html: '<div style="text-align:left;font-size:0.85rem;max-height:200px;overflow-y:auto;">'
+                + missing.map(function(name) { return '<div style="padding:3px 0;">• ' + name.replace(/</g,'&lt;') + '</div>'; }).join('')
+                + '</div><div style="font-size:0.8rem;color:#78909C;margin-top:10px;">ถ้าตั้งใจเว้นว่าง (เช่น เดือนนี้ไม่ได้ใช้งานจริง) กด "ส่งอนุมัติต่อ" ได้เลย</div>',
+            showCancelButton: true,
+            confirmButtonText: 'ส่งอนุมัติต่อ',
+            cancelButtonText: 'กลับไปกรอก',
+            confirmButtonColor: '#F59E0B',
+            reverseButtons: true,
+            customClass: { popup: 'font-prompt' }
+        }).then(function(result) {
+            if (result.isConfirmed) { proceedSubmit(rows); }
+        });
+        return;
+    }
+    proceedSubmit(rows);
+}
+
+function proceedSubmit(rows) {
     Swal.fire({
         title: 'ยืนยันการส่งอนุมัติ?',
         html:  '<b>' + rows.length + ' รายการ</b> จะถูกส่งรออนุมัติ<br>ไม่สามารถแก้ไขได้อีกจนกว่าจะได้รับการอนุมัติ',

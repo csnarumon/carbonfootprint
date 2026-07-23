@@ -21,20 +21,15 @@ dbCarbonFootprint_v12
 dbCarbonFootprint_bak_withdata
 dbCFP_bak_14072026
 dbCFP_bak_16072026
-dbCFP_genscripts_16072026
 dbCFP_bak_19072026
-dbCFP_genscripts_19072026
 dbCFP_bak_20072026
-dbCFP_genscripts_20072026
 
 # PDF files (ไม่ต้อง track ทั้งโปรเจกต์)
 *.pdf
 
 # EXCEL
-EF_Reimport_86_2569_v2.xlsx
-Total site-Rev.8_25.01.2026_Final_example.xlsx
+*.xlsx
 
 # WORD
-007_DataDict.docx
-008_FlowCFP.docx
+*.docx
 

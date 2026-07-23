@@ -1,7 +1,7 @@
 <?php
 /* ==============================================
    dashboard/index.php — Dashboard หลัก
-   ระบบบริหารจัดการคาร์บอนองค์กร
+   GHG Management System
    ============================================== */
 require_once '../includes/auth_check.php';
 require_once '../config/db.php';
@@ -108,7 +108,7 @@ $pageIcon  = 'grid-1x2-fill';
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard — ระบบบริหารจัดการคาร์บอนองค์กร</title>
+  <title>Dashboard — GHG Management System</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
@@ -337,8 +337,8 @@ $pageIcon  = 'grid-1x2-fill';
         <canvas id="chartGHG" height="140"></canvas>
         <div class="chart-legend">
           <div class="legend-item"><span class="legend-dot" style="background:#2AABB8;"></span>Scope 1</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#5CC8D8;"></span>Scope 2</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#A8D8C0;"></span>Scope 3</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#7C3AED;"></span>Scope 2</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#F59E0B;"></span>Scope 3</div>
         </div>
       </div>
 
@@ -359,13 +359,13 @@ $pageIcon  = 'grid-1x2-fill';
               </span>
             </div>
             <div class="donut-legend-row">
-              <span><span class="legend-dot" style="background:#5CC8D8;"></span>Scope 2</span>
+              <span><span class="legend-dot" style="background:#7C3AED;"></span>Scope 2</span>
               <span class="donut-legend-pct">
                 <?php echo $kpiTotal > 0 ? round($kpiScope2 / $kpiTotal * 100) : 0; ?>%
               </span>
             </div>
             <div class="donut-legend-row">
-              <span><span class="legend-dot" style="background:#A8D8C0;"></span>Scope 3</span>
+              <span><span class="legend-dot" style="background:#F59E0B;"></span>Scope 3</span>
               <span class="donut-legend-pct">
                 <?php echo $kpiTotal > 0 ? round($kpiScope3 / $kpiTotal * 100) : 0; ?>%
               </span>
@@ -410,14 +410,14 @@ new Chart(ctxBar, {
             {
                 label: 'Scope 2',
                 data: dataS2,
-                backgroundColor: '#5CC8D8',
+                backgroundColor: '#7C3AED',
                 borderRadius: 4,
                 barPercentage: 0.75
             },
             {
                 label: 'Scope 3',
                 data: dataS3,
-                backgroundColor: '#A8D8C0',
+                backgroundColor: '#F59E0B',
                 borderRadius: 4,
                 barPercentage: 0.75
             }
@@ -452,7 +452,7 @@ new Chart(ctxDonut, {
         labels: ['Scope 1', 'Scope 2', 'Scope 3'],
         datasets: [{
             data: [<?php echo $kpiScope1; ?>, <?php echo $kpiScope2; ?>, <?php echo $kpiScope3; ?>],
-            backgroundColor: ['#2AABB8', '#5CC8D8', '#A8D8C0'],
+            backgroundColor: ['#2AABB8', '#7C3AED', '#F59E0B'],
             borderWidth: 0,
             hoverOffset: 6
         }]

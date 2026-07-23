@@ -67,6 +67,7 @@ $catLabelMap = array(
     'Mobile-OnRoad'  => 'Mobile Source — On-road vehicles',
     'Mobile-OffRoad' => 'Mobile Source — Off-road vehicles/mobile equipment',
     'Fugitive'       => 'Fugitive Emissions',
+    'Refrigerant'    => 'Fugitive Emissions (Refrigerant)', /* ค่า Category จริงในฐานข้อมูลคือ "Refrigerant" ไม่ใช่ "Fugitive" */
     'Process'        => 'Process Emissions',
     'Electricity'    => 'Electricity, grid mix',
 );
@@ -102,9 +103,31 @@ $catIconMap = array(
     'Mobile-OnRoad'  => 'bi-truck',
     'Mobile-OffRoad' => 'bi-truck-flatbed',
     'Fugitive'       => 'bi-droplet-half',
+    'Refrigerant'    => 'bi-droplet-half',
     'Process'        => 'bi-gear-wide-connected',
     'Electricity'    => 'bi-lightning-charge-fill',
 );
+
+/* สีต่อหมวด (Category) สำหรับหัวข้อกลุ่ม — ชุดสีเดียวกับ GRP_COLORS ฝั่ง JS (Tray picker)
+   เพื่อให้สีตรงกันทั้งหน้า แทนที่จะอิงแค่ Scope (ซึ่งทำให้ทุก Category ใน Scope เดียวกันได้สีซ้ำกันหมด) */
+$catColorMap = array(
+    'Stationary'     => '#2AABB8',
+    'Mobile-OnRoad'  => '#1D4ED8',
+    'Mobile-OffRoad' => '#C2410C',
+    'Fugitive'       => '#F59E0B',
+    'Refrigerant'    => '#F59E0B',
+    'Process'        => '#8B5CF6',
+    'Electricity'    => '#059669',
+    /* Category ชื่อเดียวกัน ("Electricity") ใช้ได้ทั้ง Scope2 และ Scope3 (Fuel & Energy Related)
+       ต้อง override เป็นสีเฉพาะ Scope นี้ ไม่งั้นสีซ้ำกับ Scope2 — คีย์ผสม "Scope|Category" ตรวจก่อนคีย์เดี่ยวเสมอ */
+    'Scope3|Electricity' => '#8B5CF6',
+);
+function cfpGrpColor($cat, $scope, $catColorMap) {
+    if (isset($catColorMap[$scope . '|' . $cat])) { return $catColorMap[$scope . '|' . $cat]; }
+    if (isset($catColorMap[$cat])) { return $catColorMap[$cat]; }
+    /* Category ที่ไม่อยู่ในชุดสีเฉพาะ (เช่น Category ของ Scope3) — fallback ไปสีเดิมตาม Scope */
+    return $scope === 'Scope1' ? '#2AABB8' : ($scope === 'Scope2' ? '#F59E0B' : '#8B5CF6');
+}
 
 /* ===== ดึง ActivityItem ทั้งหมด จัดกลุ่มตาม ScopeNo ===== */
 $resItem = sqlsrv_query($conn, "
@@ -149,7 +172,7 @@ foreach ($allItems as $it) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>จัดการการผูก EF กับรา��การ Activity — ระบบบริหารจัดการคาร์บอนองค์กร</title>
+  <title>จัดการการผูก EF กับรา��การ Activity — GHG Management System</title>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
@@ -164,6 +187,9 @@ foreach ($allItems as $it) {
     .ef-table tr.linked td { background:#F0FDF4; }
     .ef-table tr.linked td:first-child { border-left:3px solid #4CAF50; }
     .ef-table tr.unlink-sel td { background:#FEF2F2; }
+    /* Section 2 (ผูกแล้ว) — ทุกแถวคือ "matched" อยู่แล้วโดยนิยาม ให้ pattern/สีเดียวกับแถวที่ match แล้วใน Section 1 (เขียวอ่อน + เส้นซ้ายเขียว) */
+    #linkedTable tbody tr:not(.ef-group-header) td { background:#F0FDF4; }
+    #linkedTable tbody tr:not(.ef-group-header) td:first-child { border-left:3px solid #4CAF50; }
     .item-sel { font-size:0.8rem; border:1px solid var(--cfp-border); border-radius:6px; padding:4px 8px; font-family:'Prompt',sans-serif; color:var(--cfp-text); background:#fff; width:100%; }
     .item-sel.matched { border-color:#4CAF50; background:#F0FDF4; }
 
@@ -236,7 +262,12 @@ foreach ($allItems as $it) {
     .scope-tab.active { background:var(--cfp-primary); color:#fff; border-color:var(--cfp-primary); font-weight:600; }
     .badge-unlink { background:#FEF2F2; color:#B91C1C; font-size:0.7rem; padding:2px 8px; border-radius:10px; font-weight:600; }
     .badge-linked { background:#F0FDF4; color:#166534; font-size:0.7rem; padding:2px 8px; border-radius:10px; font-weight:600; }
-    .ef-group-header td { padding:0; border-top:none; border-bottom:1px solid var(--cfp-border); }
+    /* กลุ่มติดอยู่ใต้ topbar (สูง 58px ตาม .cfp-topbar) ตอนเลื่อนสกอลล์ลง — เหมือน .panel-group ใน tray picker
+       กลุ่มถัดไปจะดันกลุ่มก่อนหน้าออกอัตโนมัติตามพฤติกรรม sticky ปกติของเบราว์เซอร์ ไม่ต้องใช้ JS เพิ่ม */
+    .ef-group-header td {
+      padding:0; border-top:none; border-bottom:1px solid var(--cfp-border);
+      position:sticky; top:58px; z-index:20; background:#fff;
+    }
     .ef-group-banner {
       display:flex; align-items:center; gap:10px; padding:10px 14px;
       border-top:3px solid var(--grp-color, #2AABB8);
@@ -253,12 +284,36 @@ foreach ($allItems as $it) {
       background:#fff; border:1px solid var(--grp-color, #2AABB8); padding:2px 10px; border-radius:20px;
       white-space:nowrap;
     }
-    .save-bar { position:sticky; bottom:0; background:#fff; border-top:1px solid var(--cfp-border); padding:12px 0; z-index:5; }
+    .save-bar { position:sticky; bottom:0; background:#fff; border-top:1px solid var(--cfp-border); padding:12px 0; z-index:5; border-radius:0 0 12px 12px; }
     /* z-index สูงกว่า .save-bar เสมอ กัน sticky bar ลอยทับบัง header ตอน scroll แล้วกดไม่ติด */
-    .section-title { position:relative; z-index:6; font-size:0.88rem; font-weight:600; color:var(--cfp-primary); padding:12px 16px; border-bottom:1px solid var(--cfp-border); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    /* border-radius มุมบนแทน overflow:hidden ของ .cfp-card เดิม (เอาออกเพราะมันไปตัด position:sticky ของหัวกลุ่มไม่ให้ทำงาน) */
+    .section-title { position:relative; z-index:6; font-size:0.88rem; font-weight:600; color:var(--cfp-primary); padding:12px 16px; border-bottom:1px solid var(--cfp-border); display:flex; align-items:center; gap:8px; flex-wrap:wrap; border-radius:12px 12px 0 0; background:#fff; }
     .section-title .ms-auto { flex-wrap:wrap; }
     .chk-unlink { width:16px; height:16px; cursor:pointer; accent-color:#E05050; }
     #progressWrap { display:none; }
+
+    /* ===== Tab bar (ยังไม่ผูก / ผูกแล้ว) — UI overlay เท่านั้น ไม่กระทบ logic เดิม ===== */
+    .ef-tabbar { display:flex; gap:26px; border-bottom:2px solid var(--cfp-border); margin-bottom:14px; }
+    .ef-tabbtn { font-family:'Prompt',sans-serif; font-size:0.88rem; font-weight:600; padding:12px 2px; border:none; background:transparent; cursor:pointer; color:var(--cfp-text-muted); display:flex; align-items:center; gap:8px; border-bottom:3px solid transparent; margin-bottom:-2px; border-radius:0; }
+    .ef-tabbtn.active { color:var(--cfp-navy,#1B3A4A); border-bottom-color:var(--cfp-primary,#2AABB8); }
+    .ef-tabbtn .cnt { font-size:0.7rem; padding:1px 9px; border-radius:20px; background:#F1F5F6; color:var(--cfp-text-muted); }
+    .ef-tabbtn.active .cnt.unlink { background:#FEF2F2; color:#B91C1C; }
+    .ef-tabbtn.active .cnt.linked { background:#F0FDF4; color:#166534; }
+
+    /* ===== Search box สำหรับกรองชื่อ EF ===== */
+    .ef-search-bar { display:flex; align-items:center; gap:8px; padding:10px 16px; border-bottom:1px solid var(--cfp-border); }
+    .ef-search-bar > i { color:var(--cfp-text-muted); font-size:0.85rem; }
+    .ef-search-bar input { flex:1; border:1px solid var(--cfp-border); border-radius:8px; padding:6px 12px; font-family:'Prompt',sans-serif; font-size:0.82rem; }
+    .btn-collapse-all {
+      font-family:'Prompt',sans-serif; font-size:0.76rem; font-weight:500; white-space:nowrap; flex-shrink:0;
+      border:1px solid var(--cfp-border); background:#fff; color:var(--cfp-text-mid); border-radius:8px; padding:6px 12px; cursor:pointer;
+    }
+    .btn-collapse-all:hover { background:var(--cfp-bg); }
+    .btn-collapse-all i { color:inherit; font-size:0.8rem; }
+
+    /* ===== Accordion collapse สำหรับกลุ่มใน Section 1 ===== */
+    .ef-group-banner .grp-chevron { transform:rotate(0deg); }
+    tr.ef-group-collapsed .grp-chevron { transform:rotate(-90deg); }
 
     /* ===== Responsive: จอเล็ก (มือถือ/แท็บเล็ตแนวตั้ง) ===== */
     @media (max-width: 767px) {
@@ -315,6 +370,7 @@ foreach ($allItems as $it) {
         border-top:1px solid var(--cfp-border);
       }
     }
+  </style>
 </head>
 <body>
 <div class="d-flex">
@@ -374,8 +430,19 @@ foreach ($allItems as $it) {
         </div>
       </div>
 
+      <!-- ═══════════ Tab bar: ยังไม่ผูก / ผูกแล้ว (แค่ toggle การแสดงผล ไม่แตะ logic เดิม) ═══════════ -->
+      <div class="ef-tabbar">
+        <button type="button" class="ef-tabbtn active" id="efTabBtn1" onclick="showLinkTab(1)">
+          <i class="bi bi-unlink"></i> ยังไม่ผูก <span class="cnt unlink"><?php echo $unlinkCount; ?></span>
+        </button>
+        <button type="button" class="ef-tabbtn" id="efTabBtn2" onclick="showLinkTab(2)">
+          <i class="bi bi-link-45deg"></i> ผูกแล้ว <span class="cnt linked"><?php echo $linkedCount; ?></span>
+        </button>
+      </div>
+
       <!-- ═══════════ SECTION 1: ยังไม่ผูก ═══════════ -->
-      <div class="cfp-card mb-3" style="padding:0;overflow:hidden;">
+      <div id="section1Card">
+      <div class="cfp-card mb-3" style="padding:0;">
         <div class="section-title">
           <i class="bi bi-link-45deg" style="color:#2AABB8;"></i>
           ผูก EF กับ Activity Item
@@ -406,13 +473,23 @@ foreach ($allItems as $it) {
           </div>
         </div>
 
+        <?php if ($unlinkCount > 0): ?>
+        <div class="ef-search-bar">
+          <i class="bi bi-search"></i>
+          <input type="text" id="searchUnlinked" placeholder="ค้นหาชื่อ EF..." oninput="filterUnlinkedRows(this.value)">
+          <button type="button" class="btn-collapse-all" id="btnCollapseAllUnlinked" onclick="toggleAllGroups('efTable', this)">
+            <i class="bi bi-arrows-collapse me-1"></i>ย่อทั้งหมด
+          </button>
+        </div>
+        <?php endif; ?>
+
         <?php if ($unlinkCount === 0): ?>
         <div class="text-center py-4" style="color:var(--cfp-text-muted);">
           <i class="bi bi-check-circle-fill" style="font-size:2rem;color:#4CAF50;display:block;margin-bottom:8px;"></i>
           EF ทุกรายการผูก Activity Item ครบแล้ว
         </div>
         <?php else: ?>
-        <div style="overflow-x:auto;">
+        <div>
           <table class="ef-table w-100" id="efTable">
             <thead>
               <tr>
@@ -439,21 +516,23 @@ foreach ($allItems as $it) {
                   if ($groupKeyU !== $prevGroupKeyUnlinked) {
                       $prevGroupKeyUnlinked = $groupKeyU;
                       $catLabelU = $catLabelMap[$ef['Category'] ?? ''] ?? ($cat ?: '—');
-                      $grpColorU = ($scope==='Scope1'?'#2AABB8':($scope==='Scope2'?'#F59E0B':'#8B5CF6'));
+                      $grpColorU = cfpGrpColor($ef['Category'] ?? '', $scope, $catColorMap);
                       $grpIconU  = $catIconMap[$ef['Category'] ?? ''] ?? 'bi-collection';
                       $grpCntU   = $groupCountsUnlinked[$groupKeyU] ?? 0;
                       ?>
-              <tr class="ef-group-header" data-scope="<?php echo $scope; ?>">
+              <tr class="ef-group-header" data-scope="<?php echo $scope; ?>" data-group="<?php echo htmlspecialchars($groupKeyU); ?>" onclick="toggleUnlinkedGroup('<?php echo htmlspecialchars($groupKeyU, ENT_QUOTES); ?>')" style="cursor:pointer;">
                 <td colspan="9">
                   <div class="ef-group-banner" style="--grp-color:<?php echo $grpColorU; ?>;">
                     <div class="ic"><i class="bi <?php echo $grpIconU; ?>"></i></div>
                     <b><?php echo $scope; ?> — <?php echo htmlspecialchars($catLabelU); ?></b>
                     <span class="cnt"><?php echo $grpCntU; ?> รายการ</span>
+                    <i class="bi bi-chevron-down grp-chevron" style="margin-left:8px;color:var(--grp-color);transition:transform .15s;"></i>
                   </div>
                 </td>
               </tr>
               <?php } ?>
               <tr data-efid="<?php echo $efid; ?>"
+                  data-group="<?php echo htmlspecialchars($groupKeyU); ?>"
                   data-efcode="<?php echo htmlspecialchars($ef['EFCode'] ?? ''); ?>"
                   data-efnamedisplay="<?php echo htmlspecialchars($ef['EFName'] ?? ''); ?>"
                   data-scope="<?php echo $scope; ?>"
@@ -476,9 +555,9 @@ foreach ($allItems as $it) {
                 </td>
                 <td style="font-size:0.66rem;color:var(--cfp-text-muted);white-space:nowrap;"><?php echo $cat ?: '—'; ?></td>
                 <td><span style="font-size:0.7rem;padding:1px 7px;border-radius:8px;color:#fff;font-weight:600;background:<?php echo $gasColors[$ef['GasType'] ?? ''] ?? '#888'; ?>;"><?php echo htmlspecialchars($ef['GasType'] ?? ''); ?></span></td>
-                <td style="font-family:monospace;font-size:0.82rem;color:var(--cfp-primary);font-weight:600;">
+                <td style="font-family:monospace;font-size:0.82rem;color:var(--cfp-primary);font-weight:600;white-space:nowrap;">
                   <?php echo number_format((float)$ef['EFValue'], 6); ?>
-                  <?php if ($ef['Unit']) echo '<div style="font-size:0.68rem;color:var(--cfp-text-muted);">'.htmlspecialchars($ef['Unit']).'</div>'; ?>
+                  <?php if ($ef['Unit']) echo '<span style="font-size:0.68rem;color:var(--cfp-text-muted);margin-left:4px;">'.htmlspecialchars($ef['Unit']).'</span>'; ?>
                 </td>
                 <td style="font-size:0.82rem;"><?php echo (int)$ef['YearApply']; ?></td>
                 <td>
@@ -524,6 +603,7 @@ foreach ($allItems as $it) {
           </div>
         </div>
       </div>
+      </div><!-- /section1Card -->
 
       <!-- ═══ Docked Tray (Option D) — แผงเดียวใช้ร่วมกันทุกแถว ลอยติดขอบล่างจอเสมอ ═══ -->
       <div class="ef-tray" id="efTray" style="display:none;">
@@ -557,18 +637,44 @@ foreach ($allItems as $it) {
       </div>
 
       <!-- ═══════════ SECTION 2: ผูกแล้ว / Unlink ═══════════ -->
-      <div class="cfp-card" style="padding:0;overflow:hidden;">
-        <div class="section-title" style="cursor:pointer;" onclick="toggleLinkedSection()">
+      <div id="section2Card" style="display:none;">
+      <div class="cfp-card" style="padding:0;">
+        <div class="section-title">
           <i class="bi bi-database-check" style="color:#166534;"></i>
-          EF ที่ผูกแล้ว — คลิกเพื่อดูและยกเลิกการผูก
+          EF ที่ผูกแล้ว — คลิกหัวกลุ่มเพื่อดูและยกเลิกการผูก
           <span class="badge-linked ms-1"><?php echo $linkedCount; ?> รายการ</span>
-          <i class="bi bi-chevron-down ms-auto" id="linkedChevron"></i>
+          <?php if ($linkedCount > 0): ?>
+          <div class="ms-auto d-flex align-items-center gap-2 flex-wrap">
+            <span style="font-size:0.72rem;color:var(--cfp-text-muted);">Scope:</span>
+            <button class="scope-tab active" onclick="filterLinkedScope('all', this)">ทั้งหมด</button>
+            <?php
+            $linkedScopeCounts = array('Scope1'=>0,'Scope2'=>0,'Scope3'=>0);
+            foreach ($linkedGroupOrder as $lgEfid) {
+                $lgScope = $linkedGroups[$lgEfid]['ef']['Scope'] ?? '';
+                if (isset($linkedScopeCounts[$lgScope])) { $linkedScopeCounts[$lgScope]++; }
+            }
+            foreach ($linkedScopeCounts as $sc => $cnt) {
+                if ($cnt > 0) {
+                    $scNo = str_replace('Scope','Scope ',$sc);
+                    echo '<button class="scope-tab" onclick="filterLinkedScope(\''.$sc.'\', this)">'.$scNo.' <span style="font-size:0.65rem;background:#E5E7EB;color:#374151;padding:0 5px;border-radius:8px;">'.$cnt.'</span></button>';
+                }
+            }
+            ?>
+          </div>
+          <?php endif; ?>
         </div>
-        <div id="linkedSection" style="display:none;">
+        <div id="linkedSection">
           <?php if ($linkedCount === 0): ?>
           <div class="text-center py-4" style="color:var(--cfp-text-muted);font-size:0.85rem;">ยังไม่มีรายการที่ผูกแล้ว</div>
           <?php else: ?>
-          <div style="overflow-x:auto;">
+          <div class="ef-search-bar" style="margin:12px 16px 0;">
+            <i class="bi bi-search"></i>
+            <input type="text" id="searchLinked" placeholder="ค้นหาชื่อ EF..." oninput="filterLinkedRows(this.value)">
+            <button type="button" class="btn-collapse-all" id="btnCollapseAllLinked" onclick="toggleAllGroups('linkedTable', this)">
+              <i class="bi bi-arrows-collapse me-1"></i>ย่อทั้งหมด
+            </button>
+          </div>
+          <div>
             <table class="ef-table w-100" id="linkedTable">
               <thead>
                 <tr>
@@ -593,16 +699,17 @@ foreach ($allItems as $it) {
                     if ($groupKey !== $prevGroupKey) {
                         $prevGroupKey = $groupKey;
                         $catLabel = $catLabelMap[$cat] ?? ($cat ?: '—');
-                        $grpColor = ($scope==='Scope1'?'#2AABB8':($scope==='Scope2'?'#F59E0B':'#8B5CF6'));
+                        $grpColor = cfpGrpColor($cat, $scope, $catColorMap);
                         $grpIcon  = $catIconMap[$cat] ?? 'bi-collection';
                         $grpCnt   = $groupCountsLinked[$groupKey] ?? 0;
                         ?>
-                <tr class="ef-group-header">
+                <tr class="ef-group-header" data-scope="<?php echo htmlspecialchars($scope); ?>" data-group="<?php echo htmlspecialchars($groupKey); ?>" onclick="toggleLinkedGroup('<?php echo htmlspecialchars($groupKey, ENT_QUOTES); ?>')" style="cursor:pointer;">
                   <td colspan="7">
                     <div class="ef-group-banner" style="--grp-color:<?php echo $grpColor; ?>;">
                       <div class="ic"><i class="bi <?php echo $grpIcon; ?>"></i></div>
                       <b><?php echo $scope; ?> — <?php echo htmlspecialchars($catLabel); ?></b>
                       <span class="cnt"><?php echo $grpCnt; ?> รายการ</span>
+                      <i class="bi bi-chevron-down grp-chevron" style="margin-left:8px;color:var(--grp-color);transition:transform .15s;"></i>
                     </div>
                   </td>
                 </tr>
@@ -629,7 +736,7 @@ foreach ($allItems as $it) {
                   </td>
                   <td style="font-size:0.66rem;color:var(--cfp-text-muted);white-space:nowrap;"><?php echo htmlspecialchars($cat ?: '—'); ?></td>
                   <td><span style="font-size:0.7rem;padding:1px 7px;border-radius:8px;color:#fff;font-weight:600;background:<?php echo $gasColors[$ef['GasType'] ?? ''] ?? '#888'; ?>;"><?php echo htmlspecialchars($ef['GasType'] ?? ''); ?></span></td>
-                  <td style="font-family:monospace;font-size:0.82rem;color:var(--cfp-primary);font-weight:600;">
+                  <td style="font-family:monospace;font-size:0.82rem;color:var(--cfp-primary);font-weight:600;white-space:nowrap;">
                     <?php echo number_format((float)$ef['EFValue'], 6); ?>
                     <?php if ($ef['Unit']) echo '<span style="font-size:0.72rem;color:var(--cfp-text-muted);margin-left:4px;">'.htmlspecialchars($ef['Unit']).'</span>'; ?>
                   </td>
@@ -661,6 +768,7 @@ foreach ($allItems as $it) {
           <?php endif; ?>
         </div>
       </div>
+      </div><!-- /section2Card -->
 
     </div><!-- cfp-content -->
   </div><!-- cfp-main -->
@@ -704,13 +812,18 @@ function cfpEfDisplayNameJs(name) {
 
 /* ═══ SECTION 1: Link ═══ */
 
+var currentScopeFilterUI = 'all'; /* เก็บ scope ที่เลือกไว้ล่าสุด ให้ filterUnlinkedRows() รู้ค่าปัจจุบันได้ โดยไม่ต้องอ่าน DOM ย้อนกลับ */
 function filterScope(scope, btn) {
     document.querySelectorAll('.scope-tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
+    currentScopeFilterUI = scope;
     document.querySelectorAll('#efTable tbody tr').forEach(function(tr) {
         tr.style.display = (scope === 'all' || tr.dataset.scope === scope) ? '' : 'none';
     });
     closeTray(); /* กันแถวที่ tray เปิดอยู่หายไปจากการกรองแล้ว tray ค้างผิดที่ */
+    /* ให้คำค้นหาที่พิมพ์ไว้ก่อนหน้ายังมีผลอยู่หลังเปลี่ยน scope tab (ค้นหา+scope ทำงานร่วมกันได้) */
+    var s = document.getElementById('searchUnlinked');
+    if (s && s.value.trim() !== '') { filterUnlinkedRows(s.value); }
 }
 
 /* ═══ Docked Tray Picker — เลือก Activity Item ผูกกับ EF (Option D) ═══ */
@@ -753,14 +866,18 @@ function itemChipColor(id) {
     return (it && GRP_COLORS[itemGroupKey(it)]) || '#2AABB8';
 }
 
-function buildPanel(efid, scopeNo) {
+function buildPanel(efid, scopeNo, cat) {
     var list = document.getElementById('trayPanelList');
     if (!list) { return; }
     var items = ITEMS.filter(function(it) { return it.scopeNo === scopeNo; });
     var html = '';
     if (scopeNo === 1) {
+        /* กรองให้เหลือเฉพาะกลุ่มที่ตรงกับ Category ของ EF ตัวนี้ (Stationary/Mobile-OnRoad/Mobile-OffRoad/Fugitive/Process)
+           ใช้ cfpCategoryMatchesType() ตัวเดียวกับที่ autoMatch() ใช้จับคู่ — ไม่โชว์ทุกกลุ่มปนกันเหมือนเดิมอีกต่อไป */
+        var filteredItems = cat ? items.filter(function(it) { return cfpCategoryMatchesType(cat, it); }) : items;
+        if (filteredItems.length === 0) { filteredItems = items; } /* กันหน้าเปล่า ถ้า Category ไม่รู้จักหรือไม่มี Item ตรงเป๊ะเลย */
         var groups = {};
-        items.forEach(function(it) {
+        filteredItems.forEach(function(it) {
             var g = itemGroupKey(it);
             (groups[g] = groups[g] || []).push(it);
         });
@@ -816,7 +933,7 @@ function openTray(efid) {
         (tr.dataset.scope || '') + ' · ' + (tr.dataset.category || '—') + ' · ' +
         parseFloat(tr.dataset.efvalue).toFixed(4) + (tr.dataset.unit ? ' ' + tr.dataset.unit + '/หน่วย' : '');
 
-    buildPanel(efid, scopeNo);
+    buildPanel(efid, scopeNo, tr.dataset.category || '');
     renderChips(efid);
 
     var tray = document.getElementById('efTray');
@@ -1039,6 +1156,9 @@ function cfpCategoryMatchesType(cat, it) {
     var type = it.type.toLowerCase();
     if (cat === 'mobile-onroad')  { return type === 'mobile' && it.roadType === 'OnRoad'; }
     if (cat === 'mobile-offroad') { return type === 'mobile' && it.roadType === 'OffRoad'; }
+    /* ค่า Category ของ EF คือ "Refrigerant" แต่ Item.Scope1Type เก็บเป็น "Fugitive" เสมอ (ยืนยันจาก DB จริง
+       ไม่มี Item ตัวไหนใช้ค่า "Refrigerant" เลย) จึงต้อง map คำนี้ให้ตรงกันเป็นพิเศษ เหมือนที่ map Mobile-OnRoad/OffRoad ด้านบน */
+    if (cat === 'refrigerant')    { return type === 'fugitive'; }
     return cat === type;
 }
 
@@ -1253,9 +1373,9 @@ function appendToSection1(srcTr) {
         '<td><span style="font-size:0.7rem;padding:2px 8px;border-radius:10px;color:#fff;font-weight:600;background:' + scopeColor + ';">' + scope + '</span></td>' +
         '<td style="font-size:0.66rem;color:var(--cfp-text-muted);white-space:nowrap;">' + (cat || '—') + '</td>' +
         '<td><span style="font-size:0.7rem;padding:1px 7px;border-radius:8px;color:#fff;font-weight:600;background:' + gasColor + ';">' + gasType + '</span></td>' +
-        '<td style="font-family:monospace;font-size:0.82rem;color:var(--cfp-primary);font-weight:600;">' +
+        '<td style="font-family:monospace;font-size:0.82rem;color:var(--cfp-primary);font-weight:600;white-space:nowrap;">' +
             efval.toFixed(6) +
-            (unit ? '<div style="font-size:0.68rem;color:var(--cfp-text-muted);">' + unit + '</div>' : '') +
+            (unit ? '<span style="font-size:0.68rem;color:var(--cfp-text-muted);margin-left:4px;">' + unit + '</span>' : '') +
         '</td>' +
         '<td style="font-size:0.82rem;">' + year + '</td>' +
         '<td><select class="item-sel" id="sel_' + efid + '" data-efid="' + efid + '" onchange="onSelChange(this,' + efid + ')">' + opts + '</select></td>' +
@@ -1300,7 +1420,7 @@ function appendToLinkedTable(srcTr, itemID) {
         '<td class="text-center"><input type="checkbox" class="chk-unlink" value="' + efid + '" onchange="onUnlinkCheck(this)"></td>' +
         '<td><div style="font-weight:500;white-space:nowrap;">' + cfpEfDisplayNameJs(efname) + '</div></td>' +
         '<td><span style="font-size:0.7rem;padding:2px 8px;border-radius:10px;color:#fff;font-weight:600;background:' + scopeColor + ';">' + scope + '</span></td>' +
-        '<td style="font-family:monospace;font-size:0.82rem;color:var(--cfp-primary);font-weight:600;">' +
+        '<td style="font-family:monospace;font-size:0.82rem;color:var(--cfp-primary);font-weight:600;white-space:nowrap;">' +
             efval.toFixed(6) +
             (unit ? '<span style="font-size:0.72rem;color:var(--cfp-text-muted);margin-left:4px;">' + unit + '</span>' : '') +
         '</td>' +
@@ -1323,6 +1443,147 @@ function showToast(msg, type) {
 }
 
 initLinkedChips();
+
+/* ═══ UI overlay เพิ่มใหม่: Tab / Search / Accordion — ไม่แตะ pending/save/unlink/autoMatch เดิมเลย ═══ */
+
+/* สลับ Tab "ยังไม่ผูก" / "ผูกแล้ว" — แค่ toggle การแสดงผล การ์ดที่มีอยู่เดิมทั้งก้อน */
+function showLinkTab(n) {
+    var c1 = document.getElementById('section1Card');
+    var c2 = document.getElementById('section2Card');
+    var b1 = document.getElementById('efTabBtn1');
+    var b2 = document.getElementById('efTabBtn2');
+    if (n === 1) {
+        c1.style.display = ''; c2.style.display = 'none';
+        b1.classList.add('active'); b2.classList.remove('active');
+    } else {
+        c1.style.display = 'none'; c2.style.display = '';
+        b2.classList.add('active'); b1.classList.remove('active');
+        /* linkedSection แสดงอยู่เสมอแล้ว (ไม่มีชั้น collapse ของทั้ง section อีกต่อไป) ไม่ต้องเปิดเองตรงนี้ */
+    }
+}
+
+/* ค้นหาชื่อ EF ใน Section 1 (ยังไม่ผูก) — ใช้ data-efname (lowercase) ที่มีอยู่แล้วในแถว
+   ผสานกับ currentScopeFilterUI (Scope tab เดิม) และเคลียร์สถานะพับ accordion เมื่อมีคำค้น เพื่อให้เห็นผลลัพธ์ทันที */
+function filterUnlinkedRows(kw) {
+    kw = kw.trim().toLowerCase();
+    var tbody = document.querySelector('#efTable tbody');
+    if (!tbody) { return; }
+    var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+    var groupHeaders = [];
+    rows.forEach(function(tr) {
+        if (tr.classList.contains('ef-group-header')) { groupHeaders.push(tr); return; }
+        var matchesScope  = (currentScopeFilterUI === 'all' || tr.dataset.scope === currentScopeFilterUI);
+        var matchesSearch = (kw === '' || (tr.dataset.efname || '').indexOf(kw) !== -1);
+        tr.style.display = (matchesScope && matchesSearch) ? '' : 'none';
+    });
+    groupHeaders.forEach(function(hdr) {
+        hdr.classList.remove('ef-group-collapsed'); /* ค้นหาแล้วขยายกลุ่มที่พับไว้ทั้งหมด กันแถวที่ตรงคำค้นถูกซ่อนอยู่ในกลุ่มที่พับ */
+        var next = hdr.nextElementSibling, hasVisible = false;
+        while (next && !next.classList.contains('ef-group-header')) {
+            if (next.style.display !== 'none') { hasVisible = true; }
+            next = next.nextElementSibling;
+        }
+        hdr.style.display = hasVisible ? '' : 'none';
+    });
+}
+
+/* ค้นหาชื่อ EF ใน Section 2 (ผูกแล้ว) — เพิ่มใหม่ล้วน ไม่กระทบ chip/unlink logic เดิม */
+var currentScopeFilterLinked = 'all'; /* เก็บ Scope ที่เลือกไว้ล่าสุดในแท็บ "ผูกแล้ว" — คู่กับ currentScopeFilterUI ของแท็บ "ยังไม่ผูก" */
+
+/* Scope pills ของแท็บ "ผูกแล้ว" — ไม่มี Auto-match/ล้าง ตามที่ขอ เพราะปุ่มเหล่านั้นผูกกับ pending ของ Section 1 เท่านั้น */
+function filterLinkedScope(scope, btn) {
+    document.querySelectorAll('#section2Card .scope-tab').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    currentScopeFilterLinked = scope;
+    var kw = (document.getElementById('searchLinked') || {}).value || '';
+    filterLinkedRows(kw);
+}
+
+function filterLinkedRows(kw) {
+    kw = kw.trim().toLowerCase();
+    var tbody = document.querySelector('#linkedTable tbody');
+    if (!tbody) { return; }
+    var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+    var groupHeaders = [];
+    rows.forEach(function(tr) {
+        if (tr.classList.contains('ef-group-header')) { groupHeaders.push(tr); return; }
+        var matchesScope = (currentScopeFilterLinked === 'all' || tr.dataset.scope === currentScopeFilterLinked);
+        var matchesSearch = (kw === '' || (tr.dataset.efname || '').indexOf(kw) !== -1);
+        tr.style.display = (matchesScope && matchesSearch) ? '' : 'none';
+    });
+    groupHeaders.forEach(function(hdr) {
+        hdr.classList.remove('ef-group-collapsed'); /* ค้นหาแล้วขยายกลุ่มที่พับไว้ กันแถวที่ตรงคำค้นถูกซ่อนอยู่ในกลุ่มที่พับ */
+        var next = hdr.nextElementSibling, hasVisible = false;
+        while (next && !next.classList.contains('ef-group-header')) {
+            if (next.style.display !== 'none') { hasVisible = true; }
+            next = next.nextElementSibling;
+        }
+        hdr.style.display = hasVisible ? '' : 'none';
+    });
+}
+
+/* Accordion พับ/ขยายกลุ่มใน Section 1 — คลิกที่ group header
+   ตอนขยายกลับมา คำนวณการแสดงผลของแต่ละแถวใหม่ตาม Scope tab + คำค้นหาปัจจุบัน (ไม่ใช่โชว์มั่วทุกแถว) */
+function toggleUnlinkedGroup(groupKey) {
+    var hdr = document.querySelector('#efTable tr.ef-group-header[data-group="' + groupKey + '"]');
+    if (!hdr) { return; }
+    var collapsing = !hdr.classList.contains('ef-group-collapsed');
+    hdr.classList.toggle('ef-group-collapsed', collapsing);
+    var kw = (document.getElementById('searchUnlinked') || {}).value || '';
+    kw = kw.trim().toLowerCase();
+    var next = hdr.nextElementSibling;
+    while (next && !next.classList.contains('ef-group-header')) {
+        if (collapsing) {
+            next.style.display = 'none';
+        } else {
+            var matchesScope  = (currentScopeFilterUI === 'all' || next.dataset.scope === currentScopeFilterUI);
+            var matchesSearch = (kw === '' || (next.dataset.efname || '').indexOf(kw) !== -1);
+            next.style.display = (matchesScope && matchesSearch) ? '' : 'none';
+        }
+        next = next.nextElementSibling;
+    }
+}
+
+/* Accordion พับ/ขยายกลุ่มใน Section 2 (ผูกแล้ว) — เหมือน toggleUnlinkedGroup แต่ไม่มี Scope tab ให้เช็ค
+   (เคารพแค่คำค้นหาใน searchLinked) ไม่แตะ chip/unlink logic เดิมของแถวข้างในเลย */
+function toggleLinkedGroup(groupKey) {
+    var hdr = document.querySelector('#linkedTable tr.ef-group-header[data-group="' + groupKey + '"]');
+    if (!hdr) { return; }
+    var collapsing = !hdr.classList.contains('ef-group-collapsed');
+    hdr.classList.toggle('ef-group-collapsed', collapsing);
+    var kw = (document.getElementById('searchLinked') || {}).value || '';
+    kw = kw.trim().toLowerCase();
+    var next = hdr.nextElementSibling;
+    while (next && !next.classList.contains('ef-group-header')) {
+        if (collapsing) {
+            next.style.display = 'none';
+        } else {
+            var matchesScope  = (currentScopeFilterLinked === 'all' || next.dataset.scope === currentScopeFilterLinked);
+            var matchesSearch = (kw === '' || (next.dataset.efname || '').indexOf(kw) !== -1);
+            next.style.display = (matchesScope && matchesSearch) ? '' : 'none';
+        }
+        next = next.nextElementSibling;
+    }
+}
+
+/* ปุ่ม "ย่อ/ขยายทั้งหมด" — ใช้ร่วมกันทั้ง #efTable และ #linkedTable โดยเรียก toggleUnlinkedGroup()/toggleLinkedGroup() เดิมทีละกลุ่ม
+   ไม่มี logic ใหม่ซ้ำซ้อน แค่วนเรียกฟังก์ชัน accordion ที่มีอยู่แล้วให้ครบทุกกลุ่มในตารางนั้น */
+function toggleAllGroups(tableId, btn) {
+    var collapseAll = btn.dataset.state !== 'collapsed';
+    var headers = document.querySelectorAll('#' + tableId + ' tr.ef-group-header');
+    headers.forEach(function(hdr) {
+        var isCollapsed = hdr.classList.contains('ef-group-collapsed');
+        if (collapseAll && !isCollapsed) {
+            if (tableId === 'efTable') { toggleUnlinkedGroup(hdr.dataset.group); } else { toggleLinkedGroup(hdr.dataset.group); }
+        } else if (!collapseAll && isCollapsed) {
+            if (tableId === 'efTable') { toggleUnlinkedGroup(hdr.dataset.group); } else { toggleLinkedGroup(hdr.dataset.group); }
+        }
+    });
+    btn.dataset.state = collapseAll ? 'collapsed' : 'expanded';
+    btn.innerHTML = collapseAll
+        ? '<i class="bi bi-arrows-expand me-1"></i>ขยายทั้งหมด'
+        : '<i class="bi bi-arrows-collapse me-1"></i>ย่อทั้งหมด';
+}
 </script>
 </body>
 </html>

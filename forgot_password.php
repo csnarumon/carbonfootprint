@@ -122,13 +122,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     );
                     $ok = sqlsrv_query($conn, $sqlIns, $params);
 
-if ($ok === false) {
-    $errs = sqlsrv_errors();
-    die('<pre>' . print_r($errs, true) . '</pre>');
-}
                     if ($ok) {
                         /* ส่งอีเมล */
-$subject   = 'รหัส OTP สำหรับรีเซ็ตรหัสผ่าน — ระบบบริหารจัดการคาร์บอนองค์กร';
+$subject   = 'รหัส OTP สำหรับรีเซ็ตรหัสผ่าน — GHG Management System';
 /* ใช้แทน $body ใน forgot_password.php
    Outlook 365 safe — ใช้ table layout ทั้งหมด
    ไม่ใช้ border-radius, background ใน style, flex, div layout */
@@ -149,7 +145,7 @@ for ($i = 0; $i < 6; $i++) {
 }
 $otpCells .= '<td width="10" style="font-size:0;">&nbsp;</td>';
  
-$subject = 'รหัส OTP สำหรับรีเซ็ตรหัสผ่าน — ระบบบริหารจัดการคาร์บอนองค์กร';
+$subject = 'รหัส OTP สำหรับรีเซ็ตรหัสผ่าน — GHG Management System';
  
 $body = '
 <table width="600" cellpadding="0" cellspacing="0" border="0"
@@ -170,7 +166,7 @@ $body = '
               <tr>
                 <td style="color:#4CAF50;font-size:16px;font-weight:bold;
                            letter-spacing:1px;padding-bottom:4px;">
-                  &#127807; ระบบบริหารจัดการคาร์บอนองค์กร
+                  &#127807; GHG Management System
                 </td>
               </tr>
               <tr>
@@ -476,7 +472,7 @@ $fpName    = $_SESSION['fp_name']   ?? '';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ลืมรหัสผ่าน — ระบบบริหารจัดการคาร์บอนองค์กร</title>
+<title>ลืมรหัสผ่าน — GHG Management System</title>
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
@@ -679,7 +675,7 @@ body {
         else { echo 'เปลี่ยนรหัสผ่านสำเร็จ'; }
         ?>
     </div>
-    <div class="fp-subtitle">ระบบบริหารจัดการคาร์บอนองค์กร</div>
+    <div class="fp-subtitle">GHG Management System</div>
 
     <?php if ($step <= 3) { ?>
     <!-- Step Indicator -->

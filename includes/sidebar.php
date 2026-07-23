@@ -175,7 +175,7 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
         <div class="brand-icon"><i class="bi bi-leaf-fill"></i></div>
         <div>
             ระบบบริหารจัดการ
-            <span class="brand-sub">คาร์บอนองค์กร · CFP</span>
+            <span class="brand-sub">การปล่อยก๊าซเรือนกระจก · CFP</span>
         </div>
     </a>
 
@@ -298,7 +298,7 @@ function cfpCollapsibleSection($title, $icon, $badge, $badgeClass, $items, $isOp
             $items .= cfpNavLink('/carbonfootprint/master/wastetype.php','bag-x','ประเภทขยะ','wastetype',$currentPage,'settings',true);
             $items .= cfpNavLink('/carbonfootprint/master/wastedisposalsite.php','geo-alt','สถานที่กำจัดขยะ','wastedisposalsite',$currentPage,'settings',true);
             $items .= cfpNavLink('/carbonfootprint/master/wastedisposalmethod.php','arrow-repeat','วิธีกำจัดขยะ','wastedisposalmethod',$currentPage,'settings',true);
-            $items .= cfpNavLink('/carbonfootprint/master/scope3category.php','list-check','Category Scope 3','scope3category',$currentPage,'settings');
+            $items .= cfpNavLink('/carbonfootprint/master/scope3category.php','list-check','Category (Scope 3)','scope3category',$currentPage,'settings');
             if ($roleID === 4) {
                 $items .= cfpNavLink('/carbonfootprint/master/unit.php','rulers','หน่วยวัด','unit',$currentPage,'settings');
             }
